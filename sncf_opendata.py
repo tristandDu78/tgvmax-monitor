@@ -65,12 +65,14 @@ async def check_trains_opendata(
         f'origine="{origin}" AND destination="{destination}" '
         f'AND date=date\'{travel_date}\' AND od_happy_card="OUI"'
     )
+    print(f"[OpenData] Requête : {where}")
     async with httpx.AsyncClient(timeout=30) as c:
         r = await c.get(_API, params={"where": where, "limit": 100})
         if r.status_code != 200:
-            print(f"[OpenData] Erreur API SNCF : {r.status_code}")
+            print(f"[OpenData] Erreur API SNCF : {r.status_code} — {r.text[:200]}")
             return []
         results = r.json().get("results", [])
+    print(f"[OpenData] {len(results)} résultat(s) brut(s)")
 
     trains = []
     for rec in results:
