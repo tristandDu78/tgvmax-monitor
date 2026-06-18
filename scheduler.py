@@ -49,10 +49,14 @@ async def _check_one(watch: dict) -> None:
     time_to = watch["time_to"][:5]
     discord_id = watch["discord_id"]
 
+    print(f"[Scheduler] Check: {origin}→{dest} le {travel_date} {time_from}-{time_to}")
+
     # Live d'abord, open data en fallback
     trains = await fetch_live(origin, dest, travel_date, time_from, time_to)
     if not trains:
         trains = await check_trains_opendata(origin, dest, travel_date, time_from, time_to)
+
+    print(f"[Scheduler] {len(trains)} train(s) trouvé(s)")
 
     # Mémoriser les trains trouvés pour l'affichage dans l'interface
     await db.update_watch_trains(wid, trains)
