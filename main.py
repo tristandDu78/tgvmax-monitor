@@ -15,11 +15,10 @@ from urllib.parse import urlencode
 import httpx
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
-from fastapi.staticfiles import StaticFiles
 
 from db import db
 from discord_notif import bot, send_dm
-from scheduler import start_scheduler, stop_scheduler
+from scheduler import get_scheduler_info, start_scheduler, stop_scheduler
 from sncf_opendata import get_gares, refresh_gares_cache
 
 # ----------------------------------------------------------------- config
@@ -48,7 +47,6 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="TGV Max Monitor", lifespan=lifespan)
-app.mount("/static", StaticFiles(directory="static"), name="static")
 
 
 # ----------------------------------------------------------------- helpers
@@ -221,6 +219,11 @@ async def add_watch(request: Request):
         time_to=data["time_to"],
     )
     return JSONResponse({"id": watch_id}, status_code=201)
+
+
+@app.get("/api/scheduler")
+async def scheduler_info():
+    return JSONResponse(get_scheduler_info())
 
 
 @app.delete("/api/watches/{watch_id}")

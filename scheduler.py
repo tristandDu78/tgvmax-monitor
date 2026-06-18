@@ -17,9 +17,19 @@ from sncf_opendata import check_trains_opendata, refresh_gares_cache
 
 INTERVAL = int(os.environ.get("CHECK_INTERVAL_MINUTES", "30"))
 _scheduler = AsyncIOScheduler()
+_last_check: str | None = None
+
+
+def get_scheduler_info() -> dict:
+    job = _scheduler.get_job("check_watches")
+    next_run = job.next_run_time.isoformat() if job and job.next_run_time else None
+    return {"last_check": _last_check, "next_check": next_run}
 
 
 async def check_all_watches() -> None:
+    global _last_check
+    from datetime import datetime, timezone
+    _last_check = datetime.now(timezone.utc).isoformat()
     print("[Scheduler] Démarrage du check…")
     watches = await db.get_active_watches()
     print(f"[Scheduler] {len(watches)} surveillance(s) active(s)")

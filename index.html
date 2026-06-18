@@ -286,6 +286,7 @@ input[type=date]::-webkit-calendar-picker-indicator{opacity:.5;cursor:pointer}
         <div class="sec-ttl">📋 Mes surveillances</div>
         <div class="sec-ct" id="watch-ct"></div>
       </div>
+      <div id="scheduler-info" style="font-size:.78rem;color:var(--text3);margin-bottom:10px;display:flex;gap:16px;flex-wrap:wrap"></div>
       <div id="watches-list"></div>
     </div>
 
@@ -406,9 +407,25 @@ function renderWatches(ws){
   el.querySelectorAll('.btn-del').forEach(b=>b.addEventListener('click',()=>delWatch(b.dataset.id)));
 }
 
+function fmtDT(iso){
+  if(!iso)return'—';
+  const d=new Date(iso);
+  return d.toLocaleString('fr-FR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
+}
+
+async function loadSchedulerInfo(){
+  try{
+    const s=await api('GET','/api/scheduler');
+    $('scheduler-info').innerHTML=
+      `<span>🕐 Dernier contrôle : <b>${fmtDT(s.last_check)}</b></span>`+
+      `<span>⏭ Prochain contrôle : <b>${fmtDT(s.next_check)}</b></span>`;
+  }catch(_){}
+}
+
 async function loadWatches(){
   try{renderWatches(await api('GET','/api/watches'));}
   catch(_){$('watches-list').innerHTML='<div class="empty-box"><div class="empty-txt" style="color:var(--red)">Impossible de charger les surveillances.</div></div>';}
+  loadSchedulerInfo();
 }
 
 async function delWatch(id){
