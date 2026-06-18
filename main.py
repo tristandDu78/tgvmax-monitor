@@ -77,7 +77,7 @@ async def index():
         return f.read()
 
 
-@app.get("/health")
+@app.api_route("/health", methods=["GET", "HEAD"])
 async def health():
     """Endpoint pour UptimeRobot (keepalive du free tier Render)."""
     return {"status": "ok"}
