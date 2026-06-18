@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>TGV Max Monitor 🚄</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+<style>
+/* ── Reset ── */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --brand:#5865f2;--brand-dk:#4752c4;--brand-lt:#eef0ff;--brand-glow:rgba(88,101,242,.16);
+  --green:#23a55a;--red:#da373c;--red-lt:#fff2f2;
+  --bg:#f1f2f8;--card:#fff;--card2:#f7f8ff;--border:#e2e4ee;
+  --text:#15161c;--text2:#484e65;--text3:#8e95b0;
+  --r:10px;--r2:16px;
+  --sh:0 1px 3px rgba(20,25,70,.05),0 4px 14px rgba(20,25,70,.06);
+  --sh-md:0 4px 22px rgba(88,101,242,.15);
+  --sh-lg:0 8px 40px rgba(88,101,242,.25);
+}
+body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;-webkit-font-smoothing:antialiased;line-height:1.6}
+a{color:var(--brand);text-decoration:none}
+
+/* ── Layout ── */
+.wrap{max-width:660px;margin:0 auto;padding:0 20px}
+
+/* ── Header ── */
+header{background:#fff;border-bottom:1px solid var(--border);position:sticky;top:0;z-index:20}
+.hdr{display:flex;align-items:center;justify-content:space-between;height:58px;gap:12px}
+.logo{display:flex;align-items:center;gap:9px}
+.logo-ico{font-size:1.4rem;line-height:1}
+.logo-txt{font-size:.95rem;font-weight:800;color:var(--text);letter-spacing:-.3px}
+.logo-tag{font-size:.62rem;font-weight:700;letter-spacing:.5px;text-transform:uppercase;background:var(--brand);color:#fff;padding:3px 8px;border-radius:20px}
+.hdr-r{display:flex;align-items:center;gap:8px}
+
+/* ── Discord button ── */
+.btn-disc{
+  display:inline-flex;align-items:center;gap:8px;
+  background:var(--brand);color:#fff;
+  padding:9px 18px;border-radius:var(--r);
+  font-size:.84rem;font-weight:700;font-family:inherit;
+  border:none;cursor:pointer;
+  transition:background .15s,box-shadow .15s,transform .1s;
+  box-shadow:var(--sh-md);white-space:nowrap;
+}
+.btn-disc:hover{background:var(--brand-dk);color:#fff;box-shadow:var(--sh-lg);transform:translateY(-1px);text-decoration:none}
+.btn-disc:active{transform:none}
+.btn-disc.lg{padding:14px 30px;font-size:1rem;border-radius:var(--r2);margin-bottom:32px}
+.disc-ico{width:18px;height:18px;flex-shrink:0;fill:currentColor}
+.btn-disc.lg .disc-ico{width:22px;height:22px}
+
+.btn-out{font-size:.78rem;font-weight:600;color:var(--text3);border:1.5px solid var(--border);border-radius:var(--r);padding:6px 12px;background:var(--card);cursor:pointer;transition:all .15s}
+.btn-out:hover{color:var(--red);border-color:var(--red);text-decoration:none}
+
+.chip{display:flex;align-items:center;gap:7px;background:var(--card2);border:1.5px solid var(--border);border-radius:40px;padding:4px 12px 4px 4px;font-size:.82rem;font-weight:600}
+.av-img{width:26px;height:26px;border-radius:50%;object-fit:cover}
+.av-fb{width:26px;height:26px;border-radius:50%;background:var(--brand);color:#fff;font-size:.72rem;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+
+/* ── Hero ── */
+.hero-bg{background:linear-gradient(155deg,#dfe2ff 0%,#eef0ff 40%,var(--bg) 100%);border-bottom:1px solid var(--border);padding:56px 0 52px}
+.hero{text-align:center;max-width:520px;margin:0 auto}
+.hero-badge{display:inline-flex;align-items:center;gap:6px;background:#fff;border:1.5px solid var(--border);border-radius:40px;padding:5px 14px;font-size:.78rem;font-weight:700;color:var(--text2);margin-bottom:20px;box-shadow:var(--sh)}
+.hero-h1{font-size:2.2rem;font-weight:800;line-height:1.18;letter-spacing:-.5px;color:var(--text);margin-bottom:16px}
+.grad{background:linear-gradient(135deg,var(--brand) 20%,#7c85f8 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.hero-p{font-size:1rem;color:var(--text2);max-width:420px;margin:0 auto 28px;line-height:1.65}
+.hero-p strong{color:var(--text)}
+.feats{display:flex;justify-content:center;flex-wrap:wrap;gap:8px 20px;margin-top:4px}
+.feat{display:flex;align-items:center;gap:6px;font-size:.82rem;color:var(--text2);font-weight:500}
+
+/* ── Main ── */
+main{padding:28px 0 80px}
+
+/* ── Banners ── */
+.err-ban{display:none;background:var(--red-lt);border:1.5px solid #fbb;border-radius:var(--r);padding:12px 16px;font-size:.85rem;color:var(--red);margin-bottom:18px}
+.err-ban.on{display:block}
+.remind{display:none;text-align:center;background:var(--brand-lt);border:1.5px solid #c5caf6;border-radius:var(--r);padding:12px;font-size:.88rem;color:var(--brand-dk);font-weight:600;margin-bottom:18px}
+
+/* ── Card ── */
+.card{background:var(--card);border:1.5px solid var(--border);border-radius:var(--r2);box-shadow:var(--sh);padding:26px 28px;margin-bottom:22px}
+.card-ttl{font-size:1.05rem;font-weight:800;color:var(--text);letter-spacing:-.2px;margin-bottom:4px}
+.card-sub{font-size:.82rem;color:var(--text3);margin-bottom:22px}
+
+/* ── Form ── */
+.fgrid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.field{display:flex;flex-direction:column;gap:6px}
+.full{grid-column:1/-1}
+label{font-size:.73rem;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.4px}
+
+input[type=text],input[type=date]{
+  width:100%;padding:10px 13px;
+  border:1.5px solid var(--border);border-radius:var(--r);
+  font-size:.93rem;color:var(--text);font-family:inherit;background:var(--card);
+  transition:border-color .15s,box-shadow .15s;
+}
+input[type=text]::placeholder{color:var(--text3)}
+input:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0 3px var(--brand-glow)}
+input[type=date]::-webkit-calendar-picker-indicator{opacity:.5;cursor:pointer}
+
+.time-row{display:flex;align-items:center;gap:10px}
+.time-sep{color:var(--text3);font-weight:600;flex-shrink:0}
+.sel-w{position:relative;flex:1}
+.sel-w select{
+  width:100%;padding:10px 32px 10px 13px;
+  border:1.5px solid var(--border);border-radius:var(--r);
+  font-size:.93rem;color:var(--text);font-family:inherit;background:var(--card);
+  appearance:none;-webkit-appearance:none;cursor:pointer;
+  transition:border-color .15s,box-shadow .15s;
+}
+.sel-w select:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0 3px var(--brand-glow)}
+.sel-arr{position:absolute;right:11px;top:50%;transform:translateY(-50%);width:10px;stroke:var(--text3);fill:none;pointer-events:none}
+
+/* Autocomplete */
+.ac{position:relative}
+.ac-list{position:absolute;top:calc(100% + 5px);left:0;right:0;background:var(--card);border:1.5px solid var(--border);border-radius:var(--r);box-shadow:var(--sh-md);max-height:220px;overflow-y:auto;z-index:50;display:none}
+.ac-list.open{display:block}
+.ac-it{padding:9px 14px;font-size:.88rem;cursor:pointer;color:var(--text);transition:background .08s}
+.ac-it:hover,.ac-it.hi{background:var(--brand-lt);color:var(--brand-dk)}
+.ac-it mark{background:none;color:var(--brand);font-weight:700}
+
+/* Submit */
+.btn-go{
+  width:100%;padding:13px;
+  background:var(--brand);color:#fff;
+  border:none;border-radius:var(--r);
+  font-size:.95rem;font-weight:700;font-family:inherit;cursor:pointer;
+  transition:background .15s,box-shadow .15s,transform .1s;
+  box-shadow:var(--sh-md);
+}
+.btn-go:hover:not(:disabled){background:var(--brand-dk);box-shadow:var(--sh-lg);transform:translateY(-1px)}
+.btn-go:active:not(:disabled){transform:none}
+.btn-go:disabled{background:#bfc3e0;box-shadow:none;cursor:not-allowed;color:rgba(255,255,255,.75)}
+
+/* ── Watches ── */
+.sec-hd{display:flex;align-items:baseline;gap:10px;margin-bottom:14px}
+.sec-ttl{font-size:1rem;font-weight:800;color:var(--text);letter-spacing:-.2px}
+.sec-ct{font-size:.8rem;color:var(--text3)}
+
+.wcard{background:var(--card);border:1.5px solid var(--border);border-radius:var(--r2);box-shadow:var(--sh);padding:18px 20px;margin-bottom:12px;transition:box-shadow .15s,border-color .15s}
+.wcard:hover{box-shadow:var(--sh-md);border-color:#c5caf6}
+.wc-top{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.wc-route{font-size:1rem;font-weight:800;color:var(--text);letter-spacing:-.1px}
+.wc-arr{color:var(--brand);margin:0 5px}
+.wc-pills{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}
+.pill{font-size:.73rem;font-weight:600;color:var(--text2);background:var(--card2);border:1px solid var(--border);border-radius:20px;padding:3px 10px;white-space:nowrap}
+.btn-del{padding:6px 13px;border:1.5px solid var(--border);border-radius:var(--r);background:var(--card);color:var(--text3);font-size:.78rem;font-weight:700;font-family:inherit;cursor:pointer;transition:all .15s;white-space:nowrap;flex-shrink:0}
+.btn-del:hover{background:var(--red-lt);border-color:var(--red);color:var(--red)}
+.trains{display:flex;flex-direction:column;gap:6px;margin-top:12px}
+.t-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:var(--brand-lt);border:1px solid #c5caf6;border-radius:var(--r);padding:8px 12px;font-size:.83rem}
+.t-no{font-weight:700;color:var(--brand-dk)}
+.t-time{color:var(--text2)}
+.t-none{font-size:.82rem;color:var(--text3);font-style:italic;padding:4px 0;margin-top:8px}
+.empty-box{text-align:center;padding:36px 20px;background:var(--card);border:2px dashed var(--border);border-radius:var(--r2)}
+.empty-ico{font-size:2rem;margin-bottom:10px}
+.empty-txt{font-size:.88rem;color:var(--text3);line-height:1.6}
+
+/* ── Toast ── */
+#toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(72px);background:var(--text);color:#fff;padding:11px 22px;border-radius:40px;font-size:.88rem;font-weight:600;z-index:999;pointer-events:none;transition:transform .28s cubic-bezier(.34,1.56,.64,1);white-space:nowrap;max-width:90vw;text-align:center}
+#toast.show{transform:translateX(-50%) translateY(0)}
+#toast.ok{background:var(--green)}
+#toast.err{background:var(--red)}
+
+/* ── Spinner ── */
+.spin{display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:rot .65s linear infinite;vertical-align:middle;margin-right:5px}
+@keyframes rot{to{transform:rotate(360deg)}}
+
+/* ── Mobile ── */
+@media(max-width:500px){
+  .hero-h1{font-size:1.65rem}
+  .btn-disc.lg{width:100%;justify-content:center}
+  .fgrid{grid-template-columns:1fr}
+  .full{grid-column:1}
+  .card{padding:20px 16px}
+  .logo-tag{display:none}
+}
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header>
+  <div class="wrap hdr">
+    <div class="logo">
+      <span class="logo-ico">🚄</span>
+      <span class="logo-txt">TGV Max Monitor</span>
+      <span class="logo-tag">MAX Jeune</span>
+    </div>
+    <div class="hdr-r">
+      <div id="hdr-login">
+        <a href="/auth/login" class="btn-disc">
+          <svg class="disc-ico" viewBox="0 0 24 24"><path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028 14.09 14.09 0 0 0 1.226-1.994.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03z"/></svg>
+          Connexion
+        </a>
+      </div>
+      <div id="hdr-user" style="display:none;align-items:center;gap:8px">
+        <div class="chip"><div id="u-av"></div><span id="u-name"></span></div>
+        <a href="/auth/logout" class="btn-out">Déconnexion</a>
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- HERO -->
+<div class="hero-bg" id="hero-sec">
+  <div class="wrap">
+    <div class="hero">
+      <div class="hero-badge">🚄 Gratuit &amp; sans inscription</div>
+      <h1 class="hero-h1">Ne ratez plus jamais<br>une place <span class="grad">TGV Max</span></h1>
+      <p class="hero-p">Ajoutez un trajet et recevez un <strong>message privé Discord</strong> dès qu'une place MAX Jeune se libère. Aucun identifiant SNCF requis.</p>
+      <a href="/auth/login" class="btn-disc lg">
+        <svg class="disc-ico" viewBox="0 0 24 24"><path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028 14.09 14.09 0 0 0 1.226-1.994.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03z"/></svg>
+        Se connecter avec Discord
+      </a>
+      <div class="feats">
+        <div class="feat"><span>🔔</span><span>DM Discord instantané</span></div>
+        <div class="feat"><span>⏱️</span><span>Check toutes les 30 min</span></div>
+        <div class="feat"><span>🛡️</span><span>Aucun identifiant SNCF</span></div>
+        <div class="feat"><span>🆓</span><span>100% gratuit</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- APP -->
+<main>
+  <div class="wrap">
+
+    <div id="err-ban" class="err-ban"></div>
+    <div id="remind" class="remind">👆 Connectez-vous avec Discord pour activer vos alertes</div>
+
+    <!-- FORMULAIRE -->
+    <div class="card">
+      <div class="card-ttl">🔍 Surveiller un trajet</div>
+      <div class="card-sub">Remplissez le formulaire ci-dessous — on s'occupe du reste.</div>
+
+      <form id="form" autocomplete="off">
+        <div class="fgrid">
+
+          <div class="field">
+            <label for="f-ori">Gare de départ</label>
+            <div class="ac">
+              <input id="f-ori" type="text" placeholder="Paris Gare de Lyon…"/>
+              <div id="ac-ori" class="ac-list"></div>
+            </div>
+          </div>
+
+          <div class="field">
+            <label for="f-dst">Gare d'arrivée</label>
+            <div class="ac">
+              <input id="f-dst" type="text" placeholder="Lyon Part-Dieu…"/>
+              <div id="ac-dst" class="ac-list"></div>
+            </div>
+          </div>
+
+          <div class="field">
+            <label for="f-date">Date du trajet</label>
+            <input id="f-date" type="date"/>
+          </div>
+
+          <div class="field full">
+            <label>Créneau horaire</label>
+            <div class="time-row">
+              <div class="sel-w">
+                <select id="f-from"></select>
+                <svg class="sel-arr" viewBox="0 0 10 6"><path d="M1 1l4 4 4-4" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </div>
+              <span class="time-sep">→</span>
+              <div class="sel-w">
+                <select id="f-to"></select>
+                <svg class="sel-arr" viewBox="0 0 10 6"><path d="M1 1l4 4 4-4" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </div>
+            </div>
+          </div>
+
+          <div class="field full">
+            <button type="submit" id="btn-go" class="btn-go">🔔 Surveiller ce trajet</button>
+          </div>
+
+        </div>
+      </form>
+    </div>
+
+    <!-- SURVEILLANCES -->
+    <div id="watches-sec" style="display:none">
+      <div class="sec-hd">
+        <div class="sec-ttl">📋 Mes surveillances</div>
+        <div class="sec-ct" id="watch-ct"></div>
+      </div>
+      <div id="watches-list"></div>
+    </div>
+
+  </div>
+</main>
+
+<div id="toast"></div>
+
+<script>
+'use strict';
+const $=id=>document.getElementById(id);
+
+/* ── toast ── */
+let _tt;
+function toast(msg,type=''){
+  const el=$('toast');el.textContent=msg;el.className='show '+type;
+  clearTimeout(_tt);_tt=setTimeout(()=>{el.className=''},3200);
+}
+
+/* ── API ── */
+async function api(method,path,body){
+  const r=await fetch(path,{method,headers:{'Content-Type':'application/json'},body:body?JSON.stringify(body):undefined});
+  let d={};try{d=await r.json()}catch(_){}
+  if(!r.ok)throw new Error(d.detail||'Erreur '+r.status);
+  return d;
+}
+
+/* ── Remplir les selects d'heure ── */
+function fillTimes(){
+  const from=$('f-from'),to=$('f-to');
+  const f1=document.createDocumentFragment(),f2=document.createDocumentFragment();
+  for(let h=0;h<24;h++){
+    for(const m of[0,30]){
+      const v=h.toString().padStart(2,'0')+':'+m.toString().padStart(2,'0');
+      const a=document.createElement('option');a.value=a.textContent=v;f1.appendChild(a);
+      const b=document.createElement('option');b.value=b.textContent=v;f2.appendChild(b);
+    }
+  }
+  from.appendChild(f1);to.appendChild(f2);
+  from.value='06:00';to.value='20:00';
+}
+
+/* ── Date min/max ── */
+function initDate(){
+  const el=$('f-date');
+  const pad=n=>n.toString().padStart(2,'0');
+  const fmt=d=>`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+  const t=new Date(),mx=new Date(t);mx.setDate(mx.getDate()+30);
+  el.min=fmt(t);el.max=fmt(mx);el.value=fmt(t);
+}
+
+/* ── Autocomplete ── */
+function ac(inputId,listId){
+  const inp=$(inputId),list=$(listId);
+  let timer;
+  inp.addEventListener('input',()=>{
+    clearTimeout(timer);
+    const q=inp.value.trim();
+    if(q.length<2){list.className='ac-list';return;}
+    timer=setTimeout(()=>fetchGares(q,inp,list),250);
+  });
+  inp.addEventListener('blur',()=>setTimeout(()=>{list.className='ac-list';},180));
+  inp.addEventListener('keydown',e=>{
+    const items=[...list.querySelectorAll('.ac-it')];
+    const hi=list.querySelector('.hi');
+    if(e.key==='ArrowDown'){e.preventDefault();const nx=hi?hi.nextElementSibling:items[0];hi?.classList.remove('hi');nx?.classList.add('hi');}
+    else if(e.key==='ArrowUp'){e.preventDefault();const pv=hi?.previousElementSibling;hi?.classList.remove('hi');pv?.classList.add('hi');}
+    else if(e.key==='Enter'&&hi){e.preventDefault();inp.value=hi.dataset.v;list.className='ac-list';}
+    else if(e.key==='Escape'){list.className='ac-list';}
+  });
+}
+async function fetchGares(q,inp,list){
+  try{
+    const gs=await api('GET',`/api/gares?q=${encodeURIComponent(q)}`);
+    list.innerHTML='';
+    if(!gs.length){list.className='ac-list';return;}
+    const frag=document.createDocumentFragment();
+    gs.forEach(g=>{
+      const d=document.createElement('div');d.className='ac-it';d.dataset.v=g;
+      const i=g.toUpperCase().indexOf(q.toUpperCase());
+      d.innerHTML=i>=0?g.slice(0,i)+'<mark>'+g.slice(i,i+q.length)+'</mark>'+g.slice(i+q.length):g;
+      d.addEventListener('mousedown',()=>{inp.value=g;list.className='ac-list';});
+      frag.appendChild(d);
+    });
+    list.appendChild(frag);list.className='ac-list open';
+  }catch(_){list.className='ac-list';}
+}
+
+/* ── Watches ── */
+function fmtDate(iso){if(!iso)return'';const[y,m,d]=iso.split('-');return`${d}/${m}/${y}`;}
+
+function renderWatches(ws){
+  const el=$('watches-list');
+  if(!ws.length){
+    el.innerHTML='<div class="empty-box"><div class="empty-ico">🔍</div><div class="empty-txt">Aucune surveillance active.<br>Remplissez le formulaire ci-dessus pour en créer une.</div></div>';
+    $('watch-ct').textContent='';return;
+  }
+  $('watch-ct').textContent=ws.length+' active'+(ws.length>1?'s':'');
+  el.innerHTML=ws.map(w=>{
+    const ts=Array.isArray(w.last_check_trains)?w.last_check_trains:[];
+    const th=ts.length
+      ?ts.map(t=>`<div class="t-row">🚆 <span class="t-no">Train ${t.train_no}</span><span class="t-time">${t.departure} → ${t.arrival}</span></div>`).join('')
+      :`<div class="t-none">Aucune place disponible au dernier contrôle</div>`;
+    return`<div class="wcard">
+      <div class="wc-top">
+        <div>
+          <div class="wc-route">${w.origin}<span class="wc-arr">→</span>${w.destination}</div>
+          <div class="wc-pills">
+            <span class="pill">📅 ${fmtDate(w.travel_date)}</span>
+            <span class="pill">🕐 ${(w.time_from||'').slice(0,5)} – ${(w.time_to||'').slice(0,5)}</span>
+          </div>
+        </div>
+        <button class="btn-del" data-id="${w.id}">Supprimer</button>
+      </div>
+      <div class="trains">${th}</div>
+    </div>`;
+  }).join('');
+  el.querySelectorAll('.btn-del').forEach(b=>b.addEventListener('click',()=>delWatch(b.dataset.id)));
+}
+
+async function loadWatches(){
+  try{renderWatches(await api('GET','/api/watches'));}
+  catch(_){$('watches-list').innerHTML='<div class="empty-box"><div class="empty-txt" style="color:var(--red)">Impossible de charger les surveillances.</div></div>';}
+}
+
+async function delWatch(id){
+  if(!confirm('Supprimer cette surveillance ?'))return;
+  try{await api('DELETE',`/api/watches/${id}`);toast('Surveillance supprimée.','ok');loadWatches();}
+  catch(e){toast(e.message,'err');}
+}
+
+/* ── Soumission ── */
+async function onSubmit(e){
+  e.preventDefault();
+  const from=$('f-from').value,to=$('f-to').value;
+  if(from>=to){toast("L'heure de début doit être avant l'heure de fin.",'err');return;}
+  const body={
+    origin:$('f-ori').value.trim().toUpperCase(),
+    destination:$('f-dst').value.trim().toUpperCase(),
+    travel_date:$('f-date').value,
+    time_from:from,time_to:to,
+  };
+  if(!body.origin||!body.destination){toast("Veuillez renseigner les gares.",'err');return;}
+  const btn=$('btn-go');btn.disabled=true;
+  btn.innerHTML='<span class="spin"></span>Enregistrement…';
+  try{
+    await api('POST','/api/watches',body);
+    toast('✅ Surveillance créée ! Vous recevrez un DM Discord dès qu\'une place est disponible.','ok');
+    $('form').reset();initDate();$('f-from').value='06:00';$('f-to').value='20:00';
+    loadWatches();
+  }catch(err){toast(err.message,'err');}
+  finally{btn.disabled=false;btn.textContent='🔔 Surveiller ce trajet';}
+}
+
+/* ── Auth ── */
+function setAuth(ok,user){
+  $('hdr-login').style.display=ok?'none':'';
+  $('hdr-user').style.display=ok?'flex':'none';
+  $('hero-sec').style.display=ok?'none':'';
+  $('remind').style.display=ok?'none':'block';
+  $('watches-sec').style.display=ok?'block':'none';
+  $('btn-go').disabled=!ok;
+  if(!ok){$('btn-go').textContent='🔒 Connectez-vous pour surveiller';return;}
+  $('btn-go').textContent='🔔 Surveiller ce trajet';
+  // Avatar
+  const av=$('u-av');av.innerHTML='';
+  if(user.avatar){
+    const img=document.createElement('img');
+    img.src=`https://cdn.discordapp.com/avatars/${user.discord_id}/${user.avatar}.png?size=64`;
+    img.alt=user.username;img.className='av-img';av.appendChild(img);
+  }else{
+    const fb=document.createElement('div');fb.className='av-fb';
+    fb.textContent=(user.username||'?')[0].toUpperCase();av.appendChild(fb);
+  }
+  $('u-name').textContent=user.username;
+  loadWatches();
+}
+
+/* ── OAuth error ── */
+function checkErr(){
+  const p=new URLSearchParams(location.search),e=p.get('error');
+  if(!e)return;
+  const msgs={access_denied:'Connexion annulée.',invalid_state:'Erreur de sécurité, réessayez.',token_exchange_failed:'Échec Discord, réessayez.'};
+  const el=$('err-ban');el.textContent=msgs[e]||'Erreur : '+e;el.classList.add('on');
+  history.replaceState({},'','/');
+}
+
+/* ── Init ── */
+async function init(){
+  checkErr();
+  fillTimes();   // ← selects remplis IMMÉDIATEMENT, avant tout appel réseau
+  initDate();
+  ac('f-ori','ac-ori');
+  ac('f-dst','ac-dst');
+  $('form').addEventListener('submit',onSubmit);
+  $('btn-go').disabled=true;
+  try{
+    const{authenticated,user}=await api('GET','/api/me');
+    setAuth(authenticated,user||{});
+  }catch(_){setAuth(false,{});}
+}
+
+document.addEventListener('DOMContentLoaded',init);
+</script>
+</body>
+</html>
