@@ -9,7 +9,7 @@ from typing import Optional
 
 import httpx
 
-_AUTH0 = "https://auth.moniidentifiant.sncf"
+_AUTH0 = "https://auth.monidentifiant.sncf"
 _CLIENT_ID = "mkEcrPWwH3EWhEvxBbZCjpHHVo6oJZlX"
 _AUDIENCE = "https://www.sncf-connect.com/bff/api/v2/"
 _SCOPE = "openid profile email offline_access entity_id:01002"
