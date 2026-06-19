@@ -52,7 +52,8 @@ async def login_sncf(email: str, password: str) -> dict:
             },
         )
         if r.status_code != 200:
-            raise ValueError(f"Identifiants incorrects ({r.status_code}): {r.text[:200]}")
+            print(f"[SNCF Auth] Erreur Auth0 ({r.status_code}): {r.text[:500]}")
+            raise ValueError(f"Erreur Auth0 ({r.status_code}): {r.text[:300]}")
         tokens = r.json()
 
     access_token = tokens["access_token"]
