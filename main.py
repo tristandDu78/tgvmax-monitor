@@ -19,6 +19,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from db import db
 from discord_notif import bot, send_dm
 from scheduler import get_scheduler_info, start_scheduler, stop_scheduler
+from sncf_auth import login_sncf
 from sncf_opendata import get_gares, refresh_gares_cache
 
 # ----------------------------------------------------------------- config
@@ -79,7 +80,6 @@ async def index():
 
 @app.api_route("/health", methods=["GET", "HEAD"])
 async def health():
-    """Endpoint pour UptimeRobot (keepalive du free tier Render)."""
     return {"status": "ok"}
 
 
@@ -232,4 +232,67 @@ async def delete_watch(watch_id: str, request: Request):
     if not user:
         raise HTTPException(401, "Non connecté")
     await db.delete_watch(watch_id, user["discord_id"])
+    return JSONResponse({"ok": True})
+
+
+# ----------------------------------------------------------- SNCF Connect
+@app.post("/api/sncf/login")
+async def sncf_login(request: Request):
+    user = await _current_user(request)
+    if not user:
+        raise HTTPException(401, "Non connecté")
+    data = await request.json()
+    email = data.get("email", "").strip()
+    password = data.get("password", "")
+    if not email or not password:
+        raise HTTPException(400, "Email et mot de passe requis")
+    try:
+        result = await login_sncf(email, password)
+    except ValueError as e:
+        raise HTTPException(401, str(e))
+    await db.upsert_sncf_account(
+        discord_id=user["discord_id"],
+        access_token=result["access_token"],
+        refresh_token=result["refresh_token"],
+        token_expires_at=result["token_expires_at"],
+        refresh_expires_at=result["refresh_expires_at"],
+        customer_id=result.get("customer_id"),
+        card_number=result.get("card_number"),
+        card_label=result.get("card_label"),
+        date_of_birth=result.get("date_of_birth"),
+        first_name=result.get("first_name"),
+        last_name=result.get("last_name"),
+        initials=result.get("initials"),
+    )
+    return JSONResponse({
+        "ok": True,
+        "first_name": result.get("first_name"),
+        "card_label": result.get("card_label"),
+        "card_number": result.get("card_number"),
+    })
+
+
+@app.get("/api/sncf/status")
+async def sncf_status(request: Request):
+    user = await _current_user(request)
+    if not user:
+        raise HTTPException(401, "Non connecté")
+    account = await db.get_sncf_account(user["discord_id"])
+    if not account:
+        return JSONResponse({"connected": False})
+    return JSONResponse({
+        "connected": True,
+        "first_name": account.get("first_name"),
+        "card_label": account.get("card_label"),
+        "card_number": account.get("card_number"),
+        "refresh_expires_at": account.get("refresh_expires_at"),
+    })
+
+
+@app.delete("/api/sncf/logout")
+async def sncf_logout(request: Request):
+    user = await _current_user(request)
+    if not user:
+        raise HTTPException(401, "Non connecté")
+    await db.delete_sncf_account(user["discord_id"])
     return JSONResponse({"ok": True})

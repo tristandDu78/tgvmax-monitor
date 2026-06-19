@@ -280,6 +280,49 @@ input[type=date]::-webkit-calendar-picker-indicator{opacity:.5;cursor:pointer}
       </form>
     </div>
 
+    <!-- SNCF CONNECT -->
+    <div id="sncf-sec" style="display:none;margin-bottom:18px">
+      <div class="card" style="border:1.5px solid #e2e8f0">
+        <div class="sec-hd" style="margin-bottom:10px">
+          <div class="sec-ttl" style="font-size:.95rem">🔗 Connexion SNCF Connect</div>
+        </div>
+        <!-- Connecté -->
+        <div id="sncf-connected" style="display:none">
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+            <span style="background:#dcfce7;color:#16a34a;padding:3px 10px;border-radius:20px;font-size:.8rem;font-weight:700">✓ Connecté</span>
+            <span id="sncf-name" style="font-size:.88rem;color:var(--text2)"></span>
+            <span id="sncf-expiry" style="font-size:.75rem;color:var(--text3)"></span>
+            <button id="sncf-logout-btn" style="margin-left:auto;background:none;border:1px solid #e2e8f0;border-radius:var(--r);padding:4px 12px;font-size:.78rem;color:var(--text3);cursor:pointer">Déconnecter</button>
+          </div>
+          <p style="font-size:.78rem;color:var(--text3);margin-top:8px;margin-bottom:0">Les vérifications utilisent l'API temps réel SNCF Connect. 🚀</p>
+        </div>
+        <!-- Non connecté -->
+        <div id="sncf-login-form">
+          <p style="font-size:.82rem;color:var(--text2);margin-bottom:12px">
+            Connectez votre compte SNCF Connect pour des vérifications <strong>en temps réel</strong> (au lieu de l'open data, mis à jour 1x/jour).
+          </p>
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <div>
+              <label for="sncf-email">Email SNCF Connect</label>
+              <input id="sncf-email" type="email" placeholder="prenom.nom@email.com" autocomplete="username"
+                style="width:100%;box-sizing:border-box;border:1.5px solid #e2e8f0;border-radius:var(--r);padding:9px 12px;font-size:.88rem;margin-top:4px"/>
+            </div>
+            <div>
+              <label for="sncf-password">Mot de passe</label>
+              <input id="sncf-password" type="password" placeholder="••••••••" autocomplete="current-password"
+                style="width:100%;box-sizing:border-box;border:1.5px solid #e2e8f0;border-radius:var(--r);padding:9px 12px;font-size:.88rem;margin-top:4px"/>
+            </div>
+            <button id="sncf-login-btn" style="align-self:flex-start;background:var(--brand);color:#fff;border:none;border-radius:var(--r);padding:9px 20px;font-size:.88rem;font-weight:700;cursor:pointer;transition:background .15s">
+              Se connecter à SNCF
+            </button>
+          </div>
+          <p style="font-size:.73rem;color:var(--text3);margin-top:10px;margin-bottom:0">
+            Vos identifiants sont transmis directement à SNCF Connect et ne sont jamais stockés. Seuls les tokens d'accès sont sauvegardés.
+          </p>
+        </div>
+      </div>
+    </div>
+
     <!-- SURVEILLANCES -->
     <div id="watches-sec" style="display:none">
       <div class="sec-hd">
@@ -457,16 +500,61 @@ async function onSubmit(e){
   finally{btn.disabled=false;btn.textContent='🔔 Surveiller ce trajet';}
 }
 
+/* ── SNCF Connect ── */
+async function loadSncfStatus(){
+  try{
+    const d=await api('GET','/api/sncf/status');
+    if(d.connected){
+      $('sncf-connected').style.display='block';
+      $('sncf-login-form').style.display='none';
+      $('sncf-name').textContent=`${d.first_name||''} · ${d.card_label||'TGV Max'}`;
+      if(d.refresh_expires_at){
+        const exp=new Date(d.refresh_expires_at);
+        const days=Math.ceil((exp-Date.now())/86400000);
+        $('sncf-expiry').textContent=days<=5?`⚠️ Expire dans ${days}j`:`Expire dans ${days}j`;
+      }
+    }else{
+      $('sncf-connected').style.display='none';
+      $('sncf-login-form').style.display='block';
+    }
+  }catch(_){}
+}
+
+async function sncfLogin(){
+  const email=$('sncf-email').value.trim();
+  const pwd=$('sncf-password').value;
+  if(!email||!pwd){toast('Email et mot de passe requis.','err');return;}
+  const btn=$('sncf-login-btn');
+  btn.disabled=true;btn.innerHTML='<span class="spin"></span>Connexion…';
+  try{
+    const d=await api('POST','/api/sncf/login',{email,password:pwd});
+    toast(`✅ Connecté SNCF : ${d.first_name||''} (${d.card_label||'TGV Max'})`,'ok');
+    $('sncf-password').value='';
+    await loadSncfStatus();
+  }catch(err){toast(err.message,'err');}
+  finally{btn.disabled=false;btn.textContent='Se connecter à SNCF';}
+}
+
+async function sncfLogout(){
+  try{
+    await api('DELETE','/api/sncf/logout');
+    toast('Déconnecté de SNCF Connect.');
+    await loadSncfStatus();
+  }catch(err){toast(err.message,'err');}
+}
+
 /* ── Auth ── */
 function setAuth(ok,user){
   $('hdr-login').style.display=ok?'none':'';
   $('hdr-user').style.display=ok?'flex':'none';
   $('hero-sec').style.display=ok?'none':'';
   $('remind').style.display=ok?'none':'block';
+  $('sncf-sec').style.display=ok?'block':'none';
   $('watches-sec').style.display=ok?'block':'none';
   $('btn-go').disabled=!ok;
   if(!ok){$('btn-go').textContent='🔒 Connectez-vous pour surveiller';return;}
   $('btn-go').textContent='🔔 Surveiller ce trajet';
+  loadSncfStatus();
   // Avatar
   const av=$('u-av');av.innerHTML='';
   if(user.avatar){
@@ -498,6 +586,8 @@ async function init(){
   ac('f-ori','ac-ori');
   ac('f-dst','ac-dst');
   $('form').addEventListener('submit',onSubmit);
+  $('sncf-login-btn').addEventListener('click',sncfLogin);
+  $('sncf-logout-btn').addEventListener('click',sncfLogout);
   $('btn-go').disabled=true;
   try{
     const{authenticated,user}=await api('GET','/api/me');
