@@ -205,7 +205,8 @@ class Database:
             data = r.json()
         return data[0] if data else None
 
-    async def upsert_sncf_account(self, discord_id: str, **fields) -> None:
+    async def upsert_sncf_account(self, discord_id: str, id_token: str = "", **fields) -> None:
+        fields["id_token"] = id_token
         headers = {**self._h, "Prefer": "resolution=merge-duplicates"}
         async with httpx.AsyncClient(timeout=15) as c:
             r = await c.post(

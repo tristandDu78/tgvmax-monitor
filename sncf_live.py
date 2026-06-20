@@ -111,18 +111,24 @@ async def fetch_live(
         "userNavigation": ["IS_NOT_BUSINESS"],
     }
 
-    headers = {
-        **BFF_HEADERS,
-        "Authorization": f"Bearer {access_token}",
-    }
+    id_token = sncf_account.get("id_token", "")
+    cookies = {"__Host-access-account-token": access_token}
+    if id_token:
+        cookies["__Host-id-account-token"] = id_token
 
     try:
         async with httpx.AsyncClient(timeout=30) as c:
             r = await c.post(
                 "https://www.sncf-connect.com/bff/api/v1/itineraries",
-                headers=headers,
+                headers=BFF_HEADERS,
+                cookies=cookies,
                 json=payload,
             )
+            # Capturer un éventuel nouveau token (refresh auto BFF)
+            new_token = r.cookies.get("__Host-access-account-token")
+            if new_token and new_token != access_token:
+                print("[Live] Nouveau token reçu via Set-Cookie — à mettre à jour en DB")
+                sncf_account["_new_access_token"] = new_token
             if r.status_code != 200:
                 print(f"[Live] Erreur API ({r.status_code}): {r.text[:300]}")
                 return []

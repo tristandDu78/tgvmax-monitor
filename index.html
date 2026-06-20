@@ -298,26 +298,36 @@ input[type=date]::-webkit-calendar-picker-indicator{opacity:.5;cursor:pointer}
         </div>
         <!-- Non connecté -->
         <div id="sncf-login-form">
-          <p style="font-size:.82rem;color:var(--text2);margin-bottom:12px">
-            Connectez votre compte SNCF Connect pour des vérifications <strong>en temps réel</strong> (au lieu de l'open data, mis à jour 1x/jour).
+          <p style="font-size:.82rem;color:var(--text2);margin-bottom:10px">
+            Connectez votre session SNCF Connect pour des vérifications <strong>en temps réel</strong>.
           </p>
+          <details style="margin-bottom:12px">
+            <summary style="font-size:.8rem;color:var(--brand);cursor:pointer;font-weight:600">📋 Comment obtenir vos tokens ?</summary>
+            <ol style="font-size:.78rem;color:var(--text2);margin:8px 0 0 16px;line-height:1.7">
+              <li>Connectez-vous sur <a href="https://www.sncf-connect.com" target="_blank">sncf-connect.com</a></li>
+              <li>Ouvrez DevTools (F12) → onglet <strong>Application</strong></li>
+              <li>Dans le menu gauche : <strong>Cookies → https://www.sncf-connect.com</strong></li>
+              <li>Copiez la valeur de <code>__Host-access-account-token</code></li>
+              <li>Copiez la valeur de <code>__Host-id-account-token</code></li>
+            </ol>
+          </details>
           <div style="display:flex;flex-direction:column;gap:8px">
             <div>
-              <label for="sncf-email">Email SNCF Connect</label>
-              <input id="sncf-email" type="email" placeholder="prenom.nom@email.com" autocomplete="username"
-                style="width:100%;box-sizing:border-box;border:1.5px solid #e2e8f0;border-radius:var(--r);padding:9px 12px;font-size:.88rem;margin-top:4px"/>
+              <label for="sncf-at">Access token (<code>__Host-access-account-token</code>)</label>
+              <textarea id="sncf-at" rows="3" placeholder="eyJhbGciOiJSUzI1NiIs..."
+                style="width:100%;box-sizing:border-box;border:1.5px solid #e2e8f0;border-radius:var(--r);padding:9px 12px;font-size:.78rem;margin-top:4px;font-family:monospace;resize:vertical"></textarea>
             </div>
             <div>
-              <label for="sncf-password">Mot de passe</label>
-              <input id="sncf-password" type="password" placeholder="••••••••" autocomplete="current-password"
-                style="width:100%;box-sizing:border-box;border:1.5px solid #e2e8f0;border-radius:var(--r);padding:9px 12px;font-size:.88rem;margin-top:4px"/>
+              <label for="sncf-it">ID token (<code>__Host-id-account-token</code>)</label>
+              <textarea id="sncf-it" rows="3" placeholder="eyJhbGciOiJSUzI1NiIs..."
+                style="width:100%;box-sizing:border-box;border:1.5px solid #e2e8f0;border-radius:var(--r);padding:9px 12px;font-size:.78rem;margin-top:4px;font-family:monospace;resize:vertical"></textarea>
             </div>
             <button id="sncf-login-btn" style="align-self:flex-start;background:var(--brand);color:#fff;border:none;border-radius:var(--r);padding:9px 20px;font-size:.88rem;font-weight:700;cursor:pointer;transition:background .15s">
-              Se connecter à SNCF
+              Enregistrer les tokens
             </button>
           </div>
           <p style="font-size:.73rem;color:var(--text3);margin-top:10px;margin-bottom:0">
-            Vos identifiants sont transmis directement à SNCF Connect et ne sont jamais stockés. Seuls les tokens d'accès sont sauvegardés.
+            Les tokens sont valides ~30 min. À renouveler si les vérifications repassent en mode open data.
           </p>
         </div>
       </div>
@@ -504,6 +514,7 @@ async function onSubmit(e){
 async function loadSncfStatus(){
   try{
     const d=await api('GET','/api/sncf/status');
+    $('sncf-sec').style.display=d.is_owner?'block':'none';
     if(d.connected){
       $('sncf-connected').style.display='block';
       $('sncf-login-form').style.display='none';
@@ -521,18 +532,18 @@ async function loadSncfStatus(){
 }
 
 async function sncfLogin(){
-  const email=$('sncf-email').value.trim();
-  const pwd=$('sncf-password').value;
-  if(!email||!pwd){toast('Email et mot de passe requis.','err');return;}
+  const at=$('sncf-at').value.trim();
+  const it=$('sncf-it').value.trim();
+  if(!at){toast('Access token requis.','err');return;}
   const btn=$('sncf-login-btn');
-  btn.disabled=true;btn.innerHTML='<span class="spin"></span>Connexion…';
+  btn.disabled=true;btn.innerHTML='<span class="spin"></span>Enregistrement…';
   try{
-    const d=await api('POST','/api/sncf/login',{email,password:pwd});
+    const d=await api('POST','/api/sncf/login',{access_token:at,id_token:it});
     toast(`✅ Connecté SNCF : ${d.first_name||''} (${d.card_label||'TGV Max'})`,'ok');
-    $('sncf-password').value='';
+    $('sncf-at').value='';$('sncf-it').value='';
     await loadSncfStatus();
   }catch(err){toast(err.message,'err');}
-  finally{btn.disabled=false;btn.textContent='Se connecter à SNCF';}
+  finally{btn.disabled=false;btn.textContent='Enregistrer les tokens';}
 }
 
 async function sncfLogout(){

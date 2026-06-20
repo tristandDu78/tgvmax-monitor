@@ -34,40 +34,30 @@ BFF_HEADERS = {
 }
 
 
-async def login_sncf(email: str, password: str) -> dict:
+async def login_with_tokens(access_token: str, id_token: str) -> dict:
     """
-    Authentifie l'utilisateur via Auth0 (ROPC flow).
-    Retourne tokens + profil (customer_id, card_number, date_of_birth).
+    Stocke les tokens copiés depuis DevTools et récupère le profil SNCF via les cookies.
     """
-    async with httpx.AsyncClient(timeout=30) as c:
-        r = await c.post(
-            f"{_AUTH0}/oauth/token",
-            json={
-                "grant_type": "password",
-                "username": email,
-                "password": password,
-                "client_id": _CLIENT_ID,
-                "scope": _SCOPE,
-                "audience": _AUDIENCE,
-            },
-        )
-        if r.status_code != 200:
-            print(f"[SNCF Auth] Erreur Auth0 ({r.status_code}): {r.text[:500]}")
-            raise ValueError(f"Erreur Auth0 ({r.status_code}): {r.text[:300]}")
-        tokens = r.json()
+    import base64, json as _json
 
-    access_token = tokens["access_token"]
-    refresh_token = tokens.get("refresh_token")
-    expires_in = tokens.get("expires_in", 1800)
+    # Décoder le JWT pour lire l'expiry (sans vérifier la signature)
+    try:
+        payload_b64 = access_token.split(".")[1]
+        payload_b64 += "=" * (-len(payload_b64) % 4)
+        payload = _json.loads(base64.urlsafe_b64decode(payload_b64))
+        exp = payload.get("exp", 0)
+        token_expires_at = datetime.fromtimestamp(exp, tz=timezone.utc).isoformat()
+    except Exception:
+        token_expires_at = (datetime.now(timezone.utc) + timedelta(minutes=30)).isoformat()
 
-    profile = await _fetch_profile(access_token)
+    profile = await _fetch_profile(access_token, id_token)
 
-    now = datetime.now(timezone.utc)
     return {
         "access_token": access_token,
-        "refresh_token": refresh_token,
-        "token_expires_at": (now + timedelta(seconds=expires_in)).isoformat(),
-        "refresh_expires_at": (now + timedelta(days=30)).isoformat(),
+        "id_token": id_token,
+        "refresh_token": None,
+        "token_expires_at": token_expires_at,
+        "refresh_expires_at": (datetime.now(timezone.utc) + timedelta(days=30)).isoformat(),
         **profile,
     }
 
@@ -95,13 +85,17 @@ async def refresh_access_token(refresh_tok: str) -> dict:
     }
 
 
-async def _fetch_profile(access_token: str) -> dict:
+async def _fetch_profile(access_token: str, id_token: str = "") -> dict:
     """Récupère le profil SNCF : customer_id, carte TGV Max, date de naissance."""
-    headers = {**BFF_HEADERS, "Authorization": f"Bearer {access_token}"}
+    # Appel BFF avec les cookies (comme un vrai navigateur)
+    cookies = {"__Host-access-account-token": access_token}
+    if id_token:
+        cookies["__Host-id-account-token"] = id_token
     async with httpx.AsyncClient(timeout=30) as c:
         r = await c.get(
             "https://www.sncf-connect.com/bff/api/v2/account",
-            headers=headers,
+            headers=BFF_HEADERS,
+            cookies=cookies,
         )
         if r.status_code != 200:
             print(f"[SNCF Auth] Profil non récupéré ({r.status_code}): {r.text[:300]}")

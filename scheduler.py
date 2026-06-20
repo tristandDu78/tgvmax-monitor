@@ -14,6 +14,7 @@ from sncf_live import fetch_live
 from sncf_opendata import check_trains_opendata, refresh_gares_cache
 
 INTERVAL = int(os.environ.get("CHECK_INTERVAL_MINUTES", "30"))
+SNCF_OWNER_ID = os.environ.get("SNCF_OWNER_DISCORD_ID", "")
 _scheduler = AsyncIOScheduler()
 _last_check: str | None = None
 
@@ -75,7 +76,9 @@ async def _check_one(watch: dict) -> None:
 
     print(f"[Scheduler] Check: {origin}→{dest} le {travel_date} {time_from}-{time_to}")
 
-    sncf_account = await _get_fresh_sncf_account(discord_id)
+    # Toujours utiliser le compte SNCF du propriétaire de l'app
+    sncf_owner = SNCF_OWNER_ID or discord_id
+    sncf_account = await _get_fresh_sncf_account(sncf_owner)
     trains = []
 
     if sncf_account:

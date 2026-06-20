@@ -19,7 +19,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from db import db
 from discord_notif import bot, send_dm
 from scheduler import get_scheduler_info, start_scheduler, stop_scheduler
-from sncf_auth import login_sncf
+from sncf_auth import login_with_tokens
 from sncf_opendata import get_gares, refresh_gares_cache
 
 # ----------------------------------------------------------------- config
@@ -242,18 +242,19 @@ async def sncf_login(request: Request):
     if not user:
         raise HTTPException(401, "Non connecté")
     data = await request.json()
-    email = data.get("email", "").strip()
-    password = data.get("password", "")
-    if not email or not password:
-        raise HTTPException(400, "Email et mot de passe requis")
+    access_token = data.get("access_token", "").strip()
+    id_token = data.get("id_token", "").strip()
+    if not access_token:
+        raise HTTPException(400, "Access token requis")
     try:
-        result = await login_sncf(email, password)
-    except ValueError as e:
-        raise HTTPException(401, str(e))
+        result = await login_with_tokens(access_token, id_token)
+    except Exception as e:
+        raise HTTPException(503, f"Erreur lors de la récupération du profil SNCF : {e}")
     await db.upsert_sncf_account(
         discord_id=user["discord_id"],
         access_token=result["access_token"],
-        refresh_token=result["refresh_token"],
+        id_token=result.get("id_token", ""),
+        refresh_token=result.get("refresh_token"),
         token_expires_at=result["token_expires_at"],
         refresh_expires_at=result["refresh_expires_at"],
         customer_id=result.get("customer_id"),
@@ -272,16 +273,22 @@ async def sncf_login(request: Request):
     })
 
 
+SNCF_OWNER_ID = os.environ.get("SNCF_OWNER_DISCORD_ID", "")
+
 @app.get("/api/sncf/status")
 async def sncf_status(request: Request):
     user = await _current_user(request)
     if not user:
         raise HTTPException(401, "Non connecté")
+    is_owner = bool(SNCF_OWNER_ID and user["discord_id"] == SNCF_OWNER_ID)
+    if not is_owner:
+        return JSONResponse({"connected": False, "is_owner": False})
     account = await db.get_sncf_account(user["discord_id"])
     if not account:
-        return JSONResponse({"connected": False})
+        return JSONResponse({"connected": False, "is_owner": True})
     return JSONResponse({
         "connected": True,
+        "is_owner": True,
         "first_name": account.get("first_name"),
         "card_label": account.get("card_label"),
         "card_number": account.get("card_number"),
