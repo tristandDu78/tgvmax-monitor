@@ -48,37 +48,33 @@ async def get_sncf_tokens() -> Optional[dict]:
                 locale="fr-FR",
             )
 
-            await context.add_init_script("""
-                delete Object.getPrototypeOf(navigator).webdriver;
-                Object.defineProperty(navigator, 'webdriver', { get: () => false });
-                window.chrome = { runtime: {}, loadTimes: function(){}, csi: function(){}, app: {} };
-                Object.defineProperty(navigator, 'plugins', { get: () => [
-                    { name: 'Chrome PDF Plugin' }, { name: 'Chrome PDF Viewer' }, { name: 'Native Client' }
-                ]});
-                Object.defineProperty(navigator, 'languages', { get: () => ['fr-FR', 'fr', 'en-US', 'en'] });
-                Object.defineProperty(navigator, 'hardwareConcurrency', { get: () => 8 });
-                Object.defineProperty(navigator, 'deviceMemory', { get: () => 8 });
-                window.navigator.permissions.query = (p) => Promise.resolve({ state: 'granted', onchange: null });
-            """)
-
             page = await context.new_page()
 
-            # Passer par le BFF SNCF pour initialiser la session correctement
-            print("[Playwright] Chargement initial de sncf-connect.com…")
-            await page.goto("https://www.sncf-connect.com", wait_until="networkidle", timeout=40000)
-            await asyncio.sleep(2)
-            print(f"[Playwright] URL : {page.url}")
+            # Appliquer playwright-stealth pour bypasser la détection bot
+            try:
+                from playwright_stealth import stealth_async
+                await stealth_async(page)
+                print("[Playwright] Stealth mode activé")
+            except ImportError:
+                print("[Playwright] playwright-stealth non disponible, mode normal")
 
-            # Le BFF initialise les cookies de session et redirige vers Auth0
-            bff_url = (
-                "https://www.sncf-connect.com/bff/api/v2/authenticate"
-                "?redirectUri=https://www.sncf-connect.com/authenticate"
-                "&screenHint=SIGN_IN&channel=web&market=fr_FR"
+            # Aller directement sur Auth0 (évite DataDome du BFF SNCF)
+            import secrets as _secrets
+            state = _secrets.token_urlsafe(16)
+            auth_url = (
+                "https://auth.monidentifiant.sncf/authorize"
+                f"?response_type=code"
+                f"&client_id=mkEcrPWwH3EWhEvxBbZCjpHHVo6oJZlX"
+                f"&redirect_uri=https://www.sncf-connect.com/authenticate"
+                f"&scope=openid%20profile%20email"
+                f"&state={state}"
+                f"&screen_hint=login"
+                f"&prompt=login"
             )
-            print("[Playwright] Navigation via BFF SNCF…")
-            await page.goto(bff_url, wait_until="networkidle", timeout=40000)
-            await asyncio.sleep(4)
-            print(f"[Playwright] URL après BFF : {page.url}")
+            print("[Playwright] Navigation vers Auth0…")
+            await page.goto(auth_url, wait_until="networkidle", timeout=40000)
+            await asyncio.sleep(5)
+            print(f"[Playwright] URL : {page.url}")
 
             # Détecter si le formulaire est dans un iframe (Auth0 Universal Login)
             email_selector = 'input[type="email"], input[name="email"], input[name="username"]'
