@@ -88,63 +88,85 @@ async def get_sncf_tokens() -> Optional[dict]:
                     pass
                 print(f"[Playwright] URL après attente : {page.url}")
 
-            # Attendre l'input email — Auth0 Universal Login
-            print("[Playwright] Recherche du champ email…")
-            email_selector = 'input[type="email"], input[name="email"], input[name="username"], input[id="email"], input[id="username"]'
-            try:
-                await page.wait_for_selector(email_selector, timeout=20000)
-            except Exception:
-                inputs = await page.query_selector_all('input')
-                types = []
-                for inp in inputs:
-                    t = await inp.get_attribute('type')
-                    n = await inp.get_attribute('name')
-                    i = await inp.get_attribute('id')
-                    types.append(f"type={t} name={n} id={i}")
-                print(f"[Playwright] Inputs trouvés : {types}")
-                print(f"[Playwright] URL : {page.url}")
-                title = await page.title()
-                print(f"[Playwright] Titre page : {title}")
-                await browser.close()
-                return None
+            # Détecter si le formulaire est dans un iframe (Auth0 Universal Login)
+            email_selector = 'input[type="email"], input[name="email"], input[name="username"]'
+            print("[Playwright] Recherche du champ email (page + iframes)…")
 
-            await page.fill(email_selector, SNCF_EMAIL)
+            # Log des frames disponibles
+            frames = page.frames
+            print(f"[Playwright] Frames disponibles : {[f.url for f in frames]}")
+
+            # Chercher dans la page principale d'abord
+            target_frame = page
+            try:
+                await page.wait_for_selector(email_selector, timeout=5000)
+                print("[Playwright] Email input trouvé dans la page principale")
+            except Exception:
+                # Chercher dans les iframes
+                found_in_frame = False
+                for frame in frames:
+                    if frame == page.main_frame:
+                        continue
+                    try:
+                        await frame.wait_for_selector(email_selector, timeout=3000)
+                        target_frame = frame
+                        found_in_frame = True
+                        print(f"[Playwright] Email input trouvé dans iframe : {frame.url}")
+                        break
+                    except Exception:
+                        pass
+
+                if not found_in_frame:
+                    # Debug : log HTML partiel et inputs de toutes les frames
+                    for frame in frames:
+                        try:
+                            inputs = await frame.query_selector_all('input')
+                            if inputs:
+                                types = []
+                                for inp in inputs:
+                                    t = await inp.get_attribute('type')
+                                    n = await inp.get_attribute('name')
+                                    i = await inp.get_attribute('id')
+                                    types.append(f"type={t} name={n} id={i}")
+                                print(f"[Playwright] Frame {frame.url} inputs : {types}")
+                        except Exception:
+                            pass
+                    body = await page.inner_text('body')
+                    print(f"[Playwright] Body (500 chars) : {body[:500]}")
+                    await browser.close()
+                    return None
+
+            await target_frame.fill(email_selector, SNCF_EMAIL)
             await asyncio.sleep(0.5)
             print("[Playwright] Email rempli")
 
             # Soumettre email
             try:
-                await page.click('button[type="submit"]', timeout=5000)
+                await target_frame.click('button[type="submit"]', timeout=5000)
             except Exception:
-                await page.keyboard.press("Enter")
+                await target_frame.press(email_selector, "Enter")
             await asyncio.sleep(2)
             print(f"[Playwright] URL après email : {page.url}")
 
-            # Attendre le champ mot de passe
+            # Attendre le champ mot de passe (même frame)
             print("[Playwright] Recherche du champ mot de passe…")
+            pwd_selector = 'input[type="password"], input[name="password"]'
             try:
-                await page.wait_for_selector('input[type="password"], input[name="password"], #password', timeout=15000)
+                await target_frame.wait_for_selector(pwd_selector, timeout=15000)
             except Exception:
-                inputs = await page.query_selector_all('input')
-                types = []
-                for inp in inputs:
-                    t = await inp.get_attribute('type')
-                    n = await inp.get_attribute('name')
-                    types.append(f"type={t} name={n}")
-                print(f"[Playwright] Inputs trouvés : {types}")
-                print(f"[Playwright] URL : {page.url}")
+                print(f"[Playwright] Mot de passe non trouvé. URL : {page.url}")
                 await browser.close()
                 return None
 
-            await page.fill('input[type="password"], input[name="password"], #password', SNCF_PASSWORD)
+            await target_frame.fill(pwd_selector, SNCF_PASSWORD)
             await asyncio.sleep(0.5)
             print("[Playwright] Mot de passe rempli")
 
             # Soumettre
             try:
-                await page.click('button[type="submit"]', timeout=5000)
+                await target_frame.click('button[type="submit"]', timeout=5000)
             except Exception:
-                await page.keyboard.press("Enter")
+                await target_frame.press(pwd_selector, "Enter")
             print("[Playwright] Attente de la redirection…")
 
             # Attendre le retour sur sncf-connect.com
