@@ -5,6 +5,7 @@ SUPABASE_URL et SUPABASE_KEY (clé service_role pour bypasser le RLS).
 """
 import os
 from datetime import date, datetime, timedelta
+from typing import Optional
 
 import httpx
 
