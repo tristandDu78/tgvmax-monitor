@@ -42,9 +42,20 @@ async def lifespan(app: FastAPI):
     asyncio.create_task(bot.start(BOT_TOKEN))
     await refresh_gares_cache()
     start_scheduler()
+    # Récupérer les tokens SNCF au démarrage si Playwright est configuré
+    asyncio.create_task(_initial_sncf_refresh())
     yield
     stop_scheduler()
     await bot.close()
+
+
+async def _initial_sncf_refresh():
+    """Récupère les tokens SNCF dès le démarrage via Playwright."""
+    from scheduler import refresh_sncf_tokens_playwright, SNCF_OWNER_ID
+    if not SNCF_OWNER_ID:
+        return
+    await asyncio.sleep(10)  # Laisser le bot Discord démarrer d'abord
+    await refresh_sncf_tokens_playwright()
 
 
 app = FastAPI(title="TGV Max Monitor", lifespan=lifespan)
