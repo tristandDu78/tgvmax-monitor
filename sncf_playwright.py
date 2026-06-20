@@ -42,13 +42,12 @@ async def get_sncf_tokens() -> Optional[dict]:
                 user_agent=(
                     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                     "AppleWebKit/537.36 (KHTML, like Gecko) "
-                    "Chrome/147.0.0.0 Safari/537.36"
+                    "Chrome/131.0.0.0 Safari/537.36"
                 ),
                 viewport={"width": 1280, "height": 800},
                 locale="fr-FR",
             )
 
-            # Masquer le flag webdriver
             await context.add_init_script("""
                 Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
                 window.chrome = { runtime: {} };
@@ -58,52 +57,86 @@ async def get_sncf_tokens() -> Optional[dict]:
 
             page = await context.new_page()
 
-            # Aller sur la page de connexion SNCF Connect
-            print("[Playwright] Navigation vers sncf-connect.com…")
-            await page.goto("https://www.sncf-connect.com", wait_until="domcontentloaded", timeout=30000)
-            await asyncio.sleep(2)
+            # Aller directement sur la page Auth0 de SNCF Connect
+            auth_url = (
+                "https://auth.monidentifiant.sncf/authorize"
+                "?response_type=code"
+                "&client_id=mkEcrPWwH3EWhEvxBbZCjpHHVo6oJZlX"
+                "&redirect_uri=https://www.sncf-connect.com/authenticate"
+                "&scope=openid profile email"
+                "&screen_hint=login"
+            )
+            print(f"[Playwright] Navigation vers Auth0…")
+            await page.goto(auth_url, wait_until="domcontentloaded", timeout=30000)
+            await asyncio.sleep(3)
+            print(f"[Playwright] URL actuelle : {page.url}")
 
-            # Cliquer sur "Se connecter"
+            # Attendre l'input email (avec fallback sur tous les inputs)
+            print("[Playwright] Recherche du champ email…")
             try:
-                await page.click('[data-testid="header-login-button"], a[href*="authenticate"], button:has-text("connecter")', timeout=10000)
-                await asyncio.sleep(2)
+                await page.wait_for_selector('input[type="email"], input[name="email"], input[name="username"], #email, #username', timeout=20000)
             except Exception:
-                # Aller directement sur la page de connexion
-                await page.goto(
-                    "https://www.sncf-connect.com/bff/api/v2/authenticate"
-                    "?redirectUri=https://www.sncf-connect.com/authenticate"
-                    "&screenHint=SIGN_IN&channel=web&market=fr_FR",
-                    wait_until="domcontentloaded",
-                    timeout=30000,
-                )
-                await asyncio.sleep(2)
+                # Logger les inputs visibles pour debug
+                inputs = await page.query_selector_all('input')
+                types = []
+                for inp in inputs:
+                    t = await inp.get_attribute('type')
+                    n = await inp.get_attribute('name')
+                    types.append(f"type={t} name={n}")
+                print(f"[Playwright] Inputs trouvés : {types}")
+                print(f"[Playwright] URL : {page.url}")
+                await browser.close()
+                return None
 
-            # Attendre la page Auth0 et remplir email
-            print("[Playwright] Remplissage du formulaire…")
-            await page.wait_for_selector('input[type="email"], input[name="email"], #email', timeout=15000)
-            await page.fill('input[type="email"], input[name="email"], #email', SNCF_EMAIL)
+            await page.fill('input[type="email"], input[name="email"], input[name="username"], #email, #username', SNCF_EMAIL)
             await asyncio.sleep(0.5)
+            print("[Playwright] Email rempli")
 
-            # Chercher et cliquer le bouton "continuer" / "suivant"
+            # Soumettre email
             try:
-                await page.click('button[type="submit"], button:has-text("Continuer"), button:has-text("Suivant")', timeout=5000)
-                await asyncio.sleep(1)
+                await page.click('button[type="submit"]', timeout=5000)
             except Exception:
-                await page.press('input[type="email"]', "Enter")
-                await asyncio.sleep(1)
+                await page.keyboard.press("Enter")
+            await asyncio.sleep(2)
+            print(f"[Playwright] URL après email : {page.url}")
 
-            # Remplir mot de passe
-            await page.wait_for_selector('input[type="password"], input[name="password"], #password', timeout=10000)
+            # Attendre le champ mot de passe
+            print("[Playwright] Recherche du champ mot de passe…")
+            try:
+                await page.wait_for_selector('input[type="password"], input[name="password"], #password', timeout=15000)
+            except Exception:
+                inputs = await page.query_selector_all('input')
+                types = []
+                for inp in inputs:
+                    t = await inp.get_attribute('type')
+                    n = await inp.get_attribute('name')
+                    types.append(f"type={t} name={n}")
+                print(f"[Playwright] Inputs trouvés : {types}")
+                print(f"[Playwright] URL : {page.url}")
+                await browser.close()
+                return None
+
             await page.fill('input[type="password"], input[name="password"], #password', SNCF_PASSWORD)
             await asyncio.sleep(0.5)
+            print("[Playwright] Mot de passe rempli")
 
             # Soumettre
-            await page.click('button[type="submit"], button:has-text("Se connecter"), button:has-text("Connexion")', timeout=5000)
+            try:
+                await page.click('button[type="submit"]', timeout=5000)
+            except Exception:
+                await page.keyboard.press("Enter")
             print("[Playwright] Attente de la redirection…")
 
             # Attendre le retour sur sncf-connect.com
-            await page.wait_for_url("**/sncf-connect.com/**", timeout=20000)
+            try:
+                await page.wait_for_url("*sncf-connect.com*", timeout=25000)
+            except Exception:
+                print(f"[Playwright] Timeout redirection, URL actuelle : {page.url}")
+                await browser.close()
+                return None
+
             await asyncio.sleep(3)
+            print(f"[Playwright] URL finale : {page.url}")
 
             # Extraire les cookies
             cookies = await context.cookies()
@@ -117,7 +150,8 @@ async def get_sncf_tokens() -> Optional[dict]:
             )
 
             if not access_token:
-                print("[Playwright] Token non trouvé dans les cookies")
+                all_names = [c["name"] for c in cookies if "sncf" in c.get("domain", "")]
+                print(f"[Playwright] Token non trouvé. Cookies SNCF disponibles : {all_names}")
                 return None
 
             print("[Playwright] Tokens récupérés avec succès ✅")
