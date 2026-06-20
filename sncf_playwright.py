@@ -57,38 +57,58 @@ async def get_sncf_tokens() -> Optional[dict]:
 
             page = await context.new_page()
 
-            # Aller directement sur la page Auth0 de SNCF Connect
+            # Aller d'abord sur sncf-connect.com pour initialiser les cookies
+            print("[Playwright] Chargement initial de sncf-connect.com…")
+            await page.goto("https://www.sncf-connect.com", wait_until="networkidle", timeout=40000)
+            await asyncio.sleep(2)
+            print(f"[Playwright] URL après chargement : {page.url}")
+
+            # Aller sur la page Auth0 (Universal Login SPA)
             auth_url = (
                 "https://auth.monidentifiant.sncf/authorize"
                 "?response_type=code"
                 "&client_id=mkEcrPWwH3EWhEvxBbZCjpHHVo6oJZlX"
                 "&redirect_uri=https://www.sncf-connect.com/authenticate"
-                "&scope=openid profile email"
+                "&scope=openid%20profile%20email"
                 "&screen_hint=login"
+                "&prompt=login"
             )
-            print(f"[Playwright] Navigation vers Auth0…")
-            await page.goto(auth_url, wait_until="domcontentloaded", timeout=30000)
+            print("[Playwright] Navigation vers Auth0 (Universal Login)…")
+            await page.goto(auth_url, wait_until="networkidle", timeout=40000)
             await asyncio.sleep(3)
-            print(f"[Playwright] URL actuelle : {page.url}")
+            print(f"[Playwright] URL Auth0 : {page.url}")
 
-            # Attendre l'input email (avec fallback sur tous les inputs)
+            # Auth0 redirige vers /u/login — attendre que l'URL change si encore sur /authorize
+            if "/authorize" in page.url and "?" in page.url:
+                print("[Playwright] En attente de la redirection Auth0…")
+                try:
+                    await page.wait_for_url("**/u/**", timeout=10000)
+                    await asyncio.sleep(2)
+                except Exception:
+                    pass
+                print(f"[Playwright] URL après attente : {page.url}")
+
+            # Attendre l'input email — Auth0 Universal Login
             print("[Playwright] Recherche du champ email…")
+            email_selector = 'input[type="email"], input[name="email"], input[name="username"], input[id="email"], input[id="username"]'
             try:
-                await page.wait_for_selector('input[type="email"], input[name="email"], input[name="username"], #email, #username', timeout=20000)
+                await page.wait_for_selector(email_selector, timeout=20000)
             except Exception:
-                # Logger les inputs visibles pour debug
                 inputs = await page.query_selector_all('input')
                 types = []
                 for inp in inputs:
                     t = await inp.get_attribute('type')
                     n = await inp.get_attribute('name')
-                    types.append(f"type={t} name={n}")
+                    i = await inp.get_attribute('id')
+                    types.append(f"type={t} name={n} id={i}")
                 print(f"[Playwright] Inputs trouvés : {types}")
                 print(f"[Playwright] URL : {page.url}")
+                title = await page.title()
+                print(f"[Playwright] Titre page : {title}")
                 await browser.close()
                 return None
 
-            await page.fill('input[type="email"], input[name="email"], input[name="username"], #email, #username', SNCF_EMAIL)
+            await page.fill(email_selector, SNCF_EMAIL)
             await asyncio.sleep(0.5)
             print("[Playwright] Email rempli")
 
