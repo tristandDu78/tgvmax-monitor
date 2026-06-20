@@ -292,7 +292,8 @@ input[type=date]::-webkit-calendar-picker-indicator{opacity:.5;cursor:pointer}
             <span style="background:#dcfce7;color:#16a34a;padding:3px 10px;border-radius:20px;font-size:.8rem;font-weight:700">✓ Connecté</span>
             <span id="sncf-name" style="font-size:.88rem;color:var(--text2)"></span>
             <span id="sncf-expiry" style="font-size:.75rem;color:var(--text3)"></span>
-            <button id="sncf-logout-btn" style="margin-left:auto;background:none;border:1px solid #e2e8f0;border-radius:var(--r);padding:4px 12px;font-size:.78rem;color:var(--text3);cursor:pointer">Déconnecter</button>
+            <button id="sncf-renew-btn" onclick="$('sncf-connected').style.display='none';$('sncf-login-form').style.display='block'" style="background:none;border:1px solid var(--brand);border-radius:var(--r);padding:4px 12px;font-size:.78rem;color:var(--brand);cursor:pointer">Renouveler</button>
+            <button id="sncf-logout-btn" style="background:none;border:1px solid #e2e8f0;border-radius:var(--r);padding:4px 12px;font-size:.78rem;color:var(--text3);cursor:pointer">Déconnecter</button>
           </div>
           <p style="font-size:.78rem;color:var(--text3);margin-top:8px;margin-bottom:0">Les vérifications utilisent l'API temps réel SNCF Connect. 🚀</p>
         </div>
