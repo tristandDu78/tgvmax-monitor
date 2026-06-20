@@ -50,31 +50,67 @@ async def get_sncf_tokens() -> Optional[dict]:
 
             page = await context.new_page()
 
-            # Appliquer playwright-stealth pour bypasser la détection bot
+            # Appliquer playwright-stealth si disponible
             try:
                 from playwright_stealth import stealth_async
                 await stealth_async(page)
                 print("[Playwright] Stealth mode activé")
-            except ImportError:
-                print("[Playwright] playwright-stealth non disponible, mode normal")
+            except Exception as _e:
+                print(f"[Playwright] Stealth ignoré : {_e}")
 
-            # Aller directement sur Auth0 (évite DataDome du BFF SNCF)
-            import secrets as _secrets
-            state = _secrets.token_urlsafe(16)
-            auth_url = (
-                "https://auth.monidentifiant.sncf/authorize"
-                f"?response_type=code"
-                f"&client_id=mkEcrPWwH3EWhEvxBbZCjpHHVo6oJZlX"
-                f"&redirect_uri=https://www.sncf-connect.com/authenticate"
-                f"&scope=openid%20profile%20email"
-                f"&state={state}"
-                f"&screen_hint=login"
-                f"&prompt=login"
-            )
-            print("[Playwright] Navigation vers Auth0…")
-            await page.goto(auth_url, wait_until="networkidle", timeout=40000)
-            await asyncio.sleep(5)
+            # 1. Charger sncf-connect.com (établit les cookies DataDome)
+            print("[Playwright] Chargement de sncf-connect.com…")
+            await page.goto("https://www.sncf-connect.com", wait_until="networkidle", timeout=40000)
+            await asyncio.sleep(3)
             print(f"[Playwright] URL : {page.url}")
+
+            # 2. Fermer la bannière cookies si présente
+            for sel in [
+                "#didomi-notice-agree-button",
+                'button[id*="accept-all"]',
+                'button:has-text("Tout accepter")',
+                'button:has-text("Accepter")',
+            ]:
+                try:
+                    await page.click(sel, timeout=3000)
+                    await asyncio.sleep(1)
+                    print(f"[Playwright] Cookie banner fermé ({sel})")
+                    break
+                except Exception:
+                    pass
+
+            # 3. Cliquer sur le bouton "Se connecter" dans le header
+            print("[Playwright] Recherche du bouton de connexion…")
+            login_clicked = False
+            for sel in [
+                '[data-testid="header-login-button"]',
+                'button[aria-label*="onnexion"]',
+                'a[href*="authenticate"]',
+                'button:has-text("Connexion")',
+                'button:has-text("Se connecter")',
+                'a:has-text("Connexion")',
+            ]:
+                try:
+                    await page.click(sel, timeout=5000)
+                    login_clicked = True
+                    print(f"[Playwright] Bouton connexion cliqué ({sel})")
+                    break
+                except Exception:
+                    pass
+
+            if not login_clicked:
+                # Fallback : naviguer directement vers le BFF
+                print("[Playwright] Bouton non trouvé, navigation directe BFF…")
+                await page.goto(
+                    "https://www.sncf-connect.com/bff/api/v2/authenticate"
+                    "?redirectUri=https://www.sncf-connect.com/authenticate"
+                    "&screenHint=SIGN_IN&channel=web&market=fr_FR",
+                    wait_until="networkidle",
+                    timeout=40000,
+                )
+
+            await asyncio.sleep(4)
+            print(f"[Playwright] URL après login click : {page.url}")
 
             # Détecter si le formulaire est dans un iframe (Auth0 Universal Login)
             email_selector = 'input[type="email"], input[name="email"], input[name="username"]'
