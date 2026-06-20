@@ -2,7 +2,7 @@ services:
   - type: web
     name: tgvmax-monitor
     runtime: python
-    buildCommand: pip install -r requirements.txt && PLAYWRIGHT_BROWSERS_PATH=/opt/render/project/src/.browsers python -m playwright install chromium
+    buildCommand: pip install -r requirements.txt
     startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /health
     envVars:
@@ -22,7 +22,5 @@ services:
         sync: false
       - key: CHECK_INTERVAL_MINUTES
         value: "30"
-      - key: PLAYWRIGHT_BROWSERS_PATH
-        value: "/opt/render/project/src/.browsers"
       - key: PYTHON_VERSION
         value: "3.12.0"

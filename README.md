@@ -157,7 +157,7 @@ Vous devriez voir **"Success. No rows returned"**. ✅
    - Créez un compte gratuit sur [github.com](https://github.com) si vous n'en avez pas.
    - Cliquez sur **"New repository"** (bouton vert), donnez un nom (`tgvmax-monitor`), laissez tout par défaut, cliquez **"Create repository"**.
    - Sur la page du dépôt vide, cliquez **"uploading an existing file"**.
-   - Glissez-déposez **tous les fichiers du dossier** `tgvmax-monitor/` (y compris le sous-dossier `static/`).
+   - Glissez-déposez **tous les fichiers du dossier** `tgvmax-monitor/`.
    - Cliquez **"Commit changes"**. Votre code est en ligne.
 
 3. Sur Render, cliquez sur **"New +"** → **"Web Service"**.
@@ -269,9 +269,6 @@ tgvmax-monitor/
 ├── discord_notif.py    Bot Discord (envoi de DMs)
 ├── scheduler.py        Vérifications périodiques (APScheduler)
 ├── index.html          Interface web (CSS et JS intégrés, un seul fichier)
-├── static/
-│   ├── style.css       Styles (utilisé en production)
-│   └── app.js          Logique frontend (utilisé en production)
 ├── preview_server.py   Serveur de test local (pas pour la prod)
 ├── requirements.txt
 ├── render.yaml         Config déploiement Render

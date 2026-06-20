@@ -9,7 +9,7 @@ from apscheduler.triggers.interval import IntervalTrigger
 
 from db import db
 from discord_notif import send_dm
-from sncf_auth import refresh_access_token, login_with_tokens
+from sncf_auth import refresh_access_token
 from sncf_live import fetch_live
 from sncf_opendata import check_trains_opendata, refresh_gares_cache
 
@@ -110,37 +110,6 @@ async def _check_one(watch: dict) -> None:
             print(f"[Scheduler] ✅ Notifié {discord_id} : train {train_no} {origin}→{dest} le {travel_date}")
 
 
-async def refresh_sncf_tokens_playwright() -> None:
-    """Renouvelle les tokens SNCF du propriétaire via Playwright."""
-    if not SNCF_OWNER_ID:
-        return
-    try:
-        from sncf_playwright import get_sncf_tokens
-        tokens = await get_sncf_tokens()
-        if not tokens or not tokens.get("access_token"):
-            print("[Scheduler] Playwright : aucun token récupéré")
-            return
-        result = await login_with_tokens(tokens["access_token"], tokens.get("id_token", ""))
-        await db.upsert_sncf_account(
-            discord_id=SNCF_OWNER_ID,
-            access_token=result["access_token"],
-            id_token=result.get("id_token", ""),
-            refresh_token=None,
-            token_expires_at=result["token_expires_at"],
-            refresh_expires_at=result["refresh_expires_at"],
-            customer_id=result.get("customer_id"),
-            card_number=result.get("card_number"),
-            card_label=result.get("card_label"),
-            date_of_birth=result.get("date_of_birth"),
-            first_name=result.get("first_name"),
-            last_name=result.get("last_name"),
-            initials=result.get("initials"),
-        )
-        print("[Scheduler] Tokens SNCF rafraîchis via Playwright ✅")
-    except Exception as e:
-        print(f"[Scheduler] Playwright refresh échoué : {e}")
-
-
 async def check_expiring_sncf_tokens() -> None:
     """Notifie les utilisateurs dont le refresh token expire dans moins de 5 jours."""
     expiring = await db.get_sncf_accounts_expiring_soon()
@@ -177,14 +146,6 @@ def start_scheduler() -> None:
         id="check_sncf_expiry",
         replace_existing=True,
     )
-    if SNCF_OWNER_ID:
-        _scheduler.add_job(
-            refresh_sncf_tokens_playwright,
-            trigger=IntervalTrigger(minutes=25),
-            id="refresh_sncf_playwright",
-            replace_existing=True,
-        )
-        print("[Scheduler] Refresh Playwright SNCF activé (toutes les 25 min)")
     _scheduler.start()
     print(f"[Scheduler] Démarré — intervalle : {INTERVAL} min")
 
