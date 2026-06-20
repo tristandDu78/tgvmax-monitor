@@ -3,7 +3,7 @@ Vérification en temps réel via l'API BFF de SNCF Connect.
 Nécessite un compte SNCF Connect avec carte TGV Max.
 """
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Dict, List, Optional
 
 import httpx
@@ -29,6 +29,7 @@ async def fetch_live(
     time_from: str,
     time_to: str,
     sncf_account: Optional[dict] = None,
+    discord_id: Optional[str] = None,
 ) -> List[Dict]:
     """
     Interroge l'API temps réel SNCF Connect.
@@ -124,11 +125,18 @@ async def fetch_live(
                 cookies=cookies,
                 json=payload,
             )
-            # Capturer un éventuel nouveau token (refresh auto BFF)
+            # Sauvegarder le nouveau token si le BFF l'a rafraîchi
             new_token = r.cookies.get("__Host-access-account-token")
-            if new_token and new_token != access_token:
-                print("[Live] Nouveau token reçu via Set-Cookie — à mettre à jour en DB")
-                sncf_account["_new_access_token"] = new_token
+            if new_token and new_token != access_token and discord_id:
+                from db import db as _db
+                import base64 as _b64, json as _json
+                try:
+                    p = _json.loads(_b64.urlsafe_b64decode(new_token.split(".")[1] + "=="))
+                    exp_iso = datetime.fromtimestamp(p["exp"], tz=timezone.utc).isoformat()
+                except Exception:
+                    exp_iso = (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat()
+                await _db.update_sncf_tokens(discord_id, new_token, None, exp_iso)
+                print("[Live] Nouveau token sauvegardé en DB ✅")
             if r.status_code != 200:
                 print(f"[Live] Erreur API ({r.status_code}): {r.text[:300]}")
                 return []

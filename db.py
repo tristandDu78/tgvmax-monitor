@@ -220,19 +220,18 @@ class Database:
         self,
         discord_id: str,
         access_token: str,
-        refresh_token: str,
+        refresh_token: Optional[str],
         token_expires_at: str,
     ) -> None:
+        payload: dict = {"access_token": access_token, "token_expires_at": token_expires_at}
+        if refresh_token is not None:
+            payload["refresh_token"] = refresh_token
         async with httpx.AsyncClient(timeout=15) as c:
             await c.patch(
                 f"{self.base}/sncf_accounts",
                 headers=self._h,
                 params={"discord_id": f"eq.{discord_id}"},
-                json={
-                    "access_token": access_token,
-                    "refresh_token": refresh_token,
-                    "token_expires_at": token_expires_at,
-                },
+                json=payload,
             )
 
     async def delete_sncf_account(self, discord_id: str) -> None:

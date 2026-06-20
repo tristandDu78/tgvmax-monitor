@@ -82,7 +82,7 @@ async def _check_one(watch: dict) -> None:
     trains = []
 
     if sncf_account:
-        trains = await fetch_live(origin, dest, travel_date, time_from, time_to, sncf_account)
+        trains = await fetch_live(origin, dest, travel_date, time_from, time_to, sncf_account, discord_id=sncf_owner)
         print(f"[Scheduler] Live: {len(trains)} train(s)")
 
     if not trains:
