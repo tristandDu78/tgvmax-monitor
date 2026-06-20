@@ -50,7 +50,15 @@ async def login_with_tokens(access_token: str, id_token: str) -> dict:
     except Exception:
         token_expires_at = (datetime.now(timezone.utc) + timedelta(minutes=30)).isoformat()
 
-    profile = await _fetch_profile(access_token, id_token)
+    # Décoder le profil depuis l'ID token (pas d'appel réseau)
+    profile = _decode_id_token(id_token) if id_token else {}
+
+    # Tenter de récupérer le profil complet (card_number etc.) via BFF
+    try:
+        full_profile = await _fetch_profile(access_token, id_token)
+        profile.update({k: v for k, v in full_profile.items() if v})
+    except Exception as e:
+        print(f"[SNCF Auth] Profil BFF ignoré : {e}")
 
     return {
         "access_token": access_token,
@@ -60,6 +68,28 @@ async def login_with_tokens(access_token: str, id_token: str) -> dict:
         "refresh_expires_at": (datetime.now(timezone.utc) + timedelta(days=30)).isoformat(),
         **profile,
     }
+
+
+def _decode_id_token(id_token: str) -> dict:
+    """Extrait nom et email depuis l'ID token JWT sans vérifier la signature."""
+    import base64, json as _json
+    try:
+        payload_b64 = id_token.split(".")[1]
+        payload_b64 += "=" * (-len(payload_b64) % 4)
+        p = _json.loads(base64.urlsafe_b64decode(payload_b64))
+        first_name = p.get("given_name") or p.get("nickname") or ""
+        last_name = p.get("family_name") or ""
+        return {
+            "first_name": first_name,
+            "last_name": last_name,
+            "initials": (first_name[:1] + last_name[:1]).upper(),
+            "customer_id": None,
+            "card_number": None,
+            "card_label": "MAX JEUNE",
+            "date_of_birth": None,
+        }
+    except Exception:
+        return {}
 
 
 async def refresh_access_token(refresh_tok: str) -> dict:
