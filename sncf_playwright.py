@@ -49,44 +49,36 @@ async def get_sncf_tokens() -> Optional[dict]:
             )
 
             await context.add_init_script("""
-                Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
-                window.chrome = { runtime: {} };
-                Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3] });
-                Object.defineProperty(navigator, 'languages', { get: () => ['fr-FR', 'fr'] });
+                delete Object.getPrototypeOf(navigator).webdriver;
+                Object.defineProperty(navigator, 'webdriver', { get: () => false });
+                window.chrome = { runtime: {}, loadTimes: function(){}, csi: function(){}, app: {} };
+                Object.defineProperty(navigator, 'plugins', { get: () => [
+                    { name: 'Chrome PDF Plugin' }, { name: 'Chrome PDF Viewer' }, { name: 'Native Client' }
+                ]});
+                Object.defineProperty(navigator, 'languages', { get: () => ['fr-FR', 'fr', 'en-US', 'en'] });
+                Object.defineProperty(navigator, 'hardwareConcurrency', { get: () => 8 });
+                Object.defineProperty(navigator, 'deviceMemory', { get: () => 8 });
+                window.navigator.permissions.query = (p) => Promise.resolve({ state: 'granted', onchange: null });
             """)
 
             page = await context.new_page()
 
-            # Aller d'abord sur sncf-connect.com pour initialiser les cookies
+            # Passer par le BFF SNCF pour initialiser la session correctement
             print("[Playwright] Chargement initial de sncf-connect.com…")
             await page.goto("https://www.sncf-connect.com", wait_until="networkidle", timeout=40000)
             await asyncio.sleep(2)
-            print(f"[Playwright] URL après chargement : {page.url}")
+            print(f"[Playwright] URL : {page.url}")
 
-            # Aller sur la page Auth0 (Universal Login SPA)
-            auth_url = (
-                "https://auth.monidentifiant.sncf/authorize"
-                "?response_type=code"
-                "&client_id=mkEcrPWwH3EWhEvxBbZCjpHHVo6oJZlX"
-                "&redirect_uri=https://www.sncf-connect.com/authenticate"
-                "&scope=openid%20profile%20email"
-                "&screen_hint=login"
-                "&prompt=login"
+            # Le BFF initialise les cookies de session et redirige vers Auth0
+            bff_url = (
+                "https://www.sncf-connect.com/bff/api/v2/authenticate"
+                "?redirectUri=https://www.sncf-connect.com/authenticate"
+                "&screenHint=SIGN_IN&channel=web&market=fr_FR"
             )
-            print("[Playwright] Navigation vers Auth0 (Universal Login)…")
-            await page.goto(auth_url, wait_until="networkidle", timeout=40000)
-            await asyncio.sleep(3)
-            print(f"[Playwright] URL Auth0 : {page.url}")
-
-            # Auth0 redirige vers /u/login — attendre que l'URL change si encore sur /authorize
-            if "/authorize" in page.url and "?" in page.url:
-                print("[Playwright] En attente de la redirection Auth0…")
-                try:
-                    await page.wait_for_url("**/u/**", timeout=10000)
-                    await asyncio.sleep(2)
-                except Exception:
-                    pass
-                print(f"[Playwright] URL après attente : {page.url}")
+            print("[Playwright] Navigation via BFF SNCF…")
+            await page.goto(bff_url, wait_until="networkidle", timeout=40000)
+            await asyncio.sleep(4)
+            print(f"[Playwright] URL après BFF : {page.url}")
 
             # Détecter si le formulaire est dans un iframe (Auth0 Universal Login)
             email_selector = 'input[type="email"], input[name="email"], input[name="username"]'
@@ -117,7 +109,7 @@ async def get_sncf_tokens() -> Optional[dict]:
                         pass
 
                 if not found_in_frame:
-                    # Debug : log HTML partiel et inputs de toutes les frames
+                    # Debug : log HTML et inputs de toutes les frames
                     for frame in frames:
                         try:
                             inputs = await frame.query_selector_all('input')
@@ -128,11 +120,14 @@ async def get_sncf_tokens() -> Optional[dict]:
                                     n = await inp.get_attribute('name')
                                     i = await inp.get_attribute('id')
                                     types.append(f"type={t} name={n} id={i}")
-                                print(f"[Playwright] Frame {frame.url} inputs : {types}")
+                                print(f"[Playwright] Frame {frame.url[:80]} inputs : {types}")
                         except Exception:
                             pass
-                    body = await page.inner_text('body')
-                    print(f"[Playwright] Body (500 chars) : {body[:500]}")
+                    try:
+                        html = await page.content()
+                        print(f"[Playwright] HTML (800 chars) : {html[:800]}")
+                    except Exception as he:
+                        print(f"[Playwright] Erreur lecture HTML : {he}")
                     await browser.close()
                     return None
 
