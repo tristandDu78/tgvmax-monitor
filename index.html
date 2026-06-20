@@ -280,60 +280,6 @@ input[type=date]::-webkit-calendar-picker-indicator{opacity:.5;cursor:pointer}
       </form>
     </div>
 
-    <!-- SNCF CONNECT -->
-    <div id="sncf-sec" style="display:none;margin-bottom:18px">
-      <div class="card" style="border:1.5px solid #e2e8f0">
-        <div class="sec-hd" style="margin-bottom:10px">
-          <div class="sec-ttl" style="font-size:.95rem">🔗 Connexion SNCF Connect</div>
-        </div>
-        <!-- Connecté -->
-        <div id="sncf-connected" style="display:none">
-          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-            <span style="background:#dcfce7;color:#16a34a;padding:3px 10px;border-radius:20px;font-size:.8rem;font-weight:700">✓ Connecté</span>
-            <span id="sncf-name" style="font-size:.88rem;color:var(--text2)"></span>
-            <span id="sncf-expiry" style="font-size:.75rem;color:var(--text3)"></span>
-            <button id="sncf-renew-btn" onclick="$('sncf-connected').style.display='none';$('sncf-login-form').style.display='block'" style="background:none;border:1px solid var(--brand);border-radius:var(--r);padding:4px 12px;font-size:.78rem;color:var(--brand);cursor:pointer">Renouveler</button>
-            <button id="sncf-logout-btn" style="background:none;border:1px solid #e2e8f0;border-radius:var(--r);padding:4px 12px;font-size:.78rem;color:var(--text3);cursor:pointer">Déconnecter</button>
-          </div>
-          <p style="font-size:.78rem;color:var(--text3);margin-top:8px;margin-bottom:0">Les vérifications utilisent l'API temps réel SNCF Connect. 🚀</p>
-        </div>
-        <!-- Non connecté -->
-        <div id="sncf-login-form">
-          <p style="font-size:.82rem;color:var(--text2);margin-bottom:10px">
-            Connectez votre session SNCF Connect pour des vérifications <strong>en temps réel</strong>.
-          </p>
-          <details style="margin-bottom:12px">
-            <summary style="font-size:.8rem;color:var(--brand);cursor:pointer;font-weight:600">📋 Comment obtenir vos tokens ?</summary>
-            <ol style="font-size:.78rem;color:var(--text2);margin:8px 0 0 16px;line-height:1.7">
-              <li>Connectez-vous sur <a href="https://www.sncf-connect.com" target="_blank">sncf-connect.com</a></li>
-              <li>Ouvrez DevTools (F12) → onglet <strong>Application</strong></li>
-              <li>Dans le menu gauche : <strong>Cookies → https://www.sncf-connect.com</strong></li>
-              <li>Copiez la valeur de <code>__Host-access-account-token</code></li>
-              <li>Copiez la valeur de <code>__Host-id-account-token</code></li>
-            </ol>
-          </details>
-          <div style="display:flex;flex-direction:column;gap:8px">
-            <div>
-              <label for="sncf-at">Access token (<code>__Host-access-account-token</code>)</label>
-              <textarea id="sncf-at" rows="3" placeholder="eyJhbGciOiJSUzI1NiIs..."
-                style="width:100%;box-sizing:border-box;border:1.5px solid #e2e8f0;border-radius:var(--r);padding:9px 12px;font-size:.78rem;margin-top:4px;font-family:monospace;resize:vertical"></textarea>
-            </div>
-            <div>
-              <label for="sncf-it">ID token (<code>__Host-id-account-token</code>)</label>
-              <textarea id="sncf-it" rows="3" placeholder="eyJhbGciOiJSUzI1NiIs..."
-                style="width:100%;box-sizing:border-box;border:1.5px solid #e2e8f0;border-radius:var(--r);padding:9px 12px;font-size:.78rem;margin-top:4px;font-family:monospace;resize:vertical"></textarea>
-            </div>
-            <button id="sncf-login-btn" style="align-self:flex-start;background:var(--brand);color:#fff;border:none;border-radius:var(--r);padding:9px 20px;font-size:.88rem;font-weight:700;cursor:pointer;transition:background .15s">
-              Enregistrer les tokens
-            </button>
-          </div>
-          <p style="font-size:.73rem;color:var(--text3);margin-top:10px;margin-bottom:0">
-            Les tokens sont valides ~30 min. À renouveler si les vérifications repassent en mode open data.
-          </p>
-        </div>
-      </div>
-    </div>
-
     <!-- SURVEILLANCES -->
     <div id="watches-sec" style="display:none">
       <div class="sec-hd">
@@ -511,62 +457,16 @@ async function onSubmit(e){
   finally{btn.disabled=false;btn.textContent='🔔 Surveiller ce trajet';}
 }
 
-/* ── SNCF Connect ── */
-async function loadSncfStatus(){
-  try{
-    const d=await api('GET','/api/sncf/status');
-    $('sncf-sec').style.display=d.is_owner?'block':'none';
-    if(d.connected){
-      $('sncf-connected').style.display='block';
-      $('sncf-login-form').style.display='none';
-      $('sncf-name').textContent=`${d.first_name||''} · ${d.card_label||'TGV Max'}`;
-      if(d.refresh_expires_at){
-        const exp=new Date(d.refresh_expires_at);
-        const days=Math.ceil((exp-Date.now())/86400000);
-        $('sncf-expiry').textContent=days<=5?`⚠️ Expire dans ${days}j`:`Expire dans ${days}j`;
-      }
-    }else{
-      $('sncf-connected').style.display='none';
-      $('sncf-login-form').style.display='block';
-    }
-  }catch(_){}
-}
-
-async function sncfLogin(){
-  const at=$('sncf-at').value.trim();
-  const it=$('sncf-it').value.trim();
-  if(!at){toast('Access token requis.','err');return;}
-  const btn=$('sncf-login-btn');
-  btn.disabled=true;btn.innerHTML='<span class="spin"></span>Enregistrement…';
-  try{
-    const d=await api('POST','/api/sncf/login',{access_token:at,id_token:it});
-    toast(`✅ Connecté SNCF : ${d.first_name||''} (${d.card_label||'TGV Max'})`,'ok');
-    $('sncf-at').value='';$('sncf-it').value='';
-    await loadSncfStatus();
-  }catch(err){toast(err.message,'err');}
-  finally{btn.disabled=false;btn.textContent='Enregistrer les tokens';}
-}
-
-async function sncfLogout(){
-  try{
-    await api('DELETE','/api/sncf/logout');
-    toast('Déconnecté de SNCF Connect.');
-    await loadSncfStatus();
-  }catch(err){toast(err.message,'err');}
-}
-
 /* ── Auth ── */
 function setAuth(ok,user){
   $('hdr-login').style.display=ok?'none':'';
   $('hdr-user').style.display=ok?'flex':'none';
   $('hero-sec').style.display=ok?'none':'';
   $('remind').style.display=ok?'none':'block';
-  $('sncf-sec').style.display=ok?'block':'none';
   $('watches-sec').style.display=ok?'block':'none';
   $('btn-go').disabled=!ok;
   if(!ok){$('btn-go').textContent='🔒 Connectez-vous pour surveiller';return;}
   $('btn-go').textContent='🔔 Surveiller ce trajet';
-  loadSncfStatus();
   // Avatar
   const av=$('u-av');av.innerHTML='';
   if(user.avatar){
@@ -598,8 +498,6 @@ async function init(){
   ac('f-ori','ac-ori');
   ac('f-dst','ac-dst');
   $('form').addEventListener('submit',onSubmit);
-  $('sncf-login-btn').addEventListener('click',sncfLogin);
-  $('sncf-logout-btn').addEventListener('click',sncfLogout);
   $('btn-go').disabled=true;
   try{
     const{authenticated,user}=await api('GET','/api/me');

@@ -19,10 +19,8 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from db import db
 from discord_notif import bot
 from scheduler import get_scheduler_info, start_scheduler, stop_scheduler
-from sncf_auth import login_with_tokens
 from sncf_opendata import get_gares, refresh_gares_cache
 
-# ----------------------------------------------------------------- config
 CLIENT_ID = os.environ["DISCORD_CLIENT_ID"]
 CLIENT_SECRET = os.environ["DISCORD_CLIENT_SECRET"]
 BOT_TOKEN = os.environ["DISCORD_BOT_TOKEN"]
@@ -36,7 +34,6 @@ REDIRECT_URI = f"{APP_URL}/auth/callback"
 DISCORD_API = "https://discord.com/api/v10"
 
 
-# --------------------------------------------------------------- lifespan
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     asyncio.create_task(bot.start(BOT_TOKEN))
@@ -47,11 +44,9 @@ async def lifespan(app: FastAPI):
     await bot.close()
 
 
-
 app = FastAPI(title="TGV Max Monitor", lifespan=lifespan)
 
 
-# ----------------------------------------------------------------- helpers
 def _oauth_url(state: str) -> str:
     params = urlencode(
         {
@@ -72,7 +67,6 @@ async def _current_user(request: Request) -> dict | None:
     return await db.get_session(token)
 
 
-# ------------------------------------------------------------------ routes
 @app.get("/", response_class=HTMLResponse)
 async def index():
     with open("index.html", encoding="utf-8") as f:
@@ -84,7 +78,6 @@ async def health():
     return {"status": "ok"}
 
 
-# ---------------------------------------------------------- OAuth2 Discord
 @app.get("/auth/login")
 async def login(request: Request):
     state = secrets.token_urlsafe(16)
@@ -108,7 +101,6 @@ async def callback(
         return RedirectResponse("/?error=invalid_state")
 
     async with httpx.AsyncClient(timeout=15) as c:
-        # Échange du code contre un access token
         token_r = await c.post(
             f"{DISCORD_API}/oauth2/token",
             data={
@@ -125,7 +117,6 @@ async def callback(
         token_data = token_r.json()
         access_token = token_data["access_token"]
 
-        # Récupération du profil Discord
         user_r = await c.get(
             f"{DISCORD_API}/users/@me",
             headers={"Authorization": f"Bearer {access_token}"},
@@ -133,7 +124,6 @@ async def callback(
         user_r.raise_for_status()
         user = user_r.json()
 
-        # Ajout automatique au serveur Discord de notification
         await c.put(
             f"{DISCORD_API}/guilds/{GUILD_ID}/members/{user['id']}",
             headers={"Authorization": f"Bot {BOT_TOKEN}"},
@@ -168,7 +158,6 @@ async def logout(request: Request):
     return response
 
 
-# ---------------------------------------------------------------- API JSON
 @app.get("/api/me")
 async def me(request: Request):
     user = await _current_user(request)
@@ -202,7 +191,6 @@ async def add_watch(request: Request):
         if not data.get(field):
             raise HTTPException(400, f"Champ manquant : {field}")
 
-    # Validation de la date (max 30 jours)
     try:
         travel = date.fromisoformat(data["travel_date"])
     except ValueError:
@@ -234,169 +222,3 @@ async def delete_watch(watch_id: str, request: Request):
         raise HTTPException(401, "Non connecté")
     await db.delete_watch(watch_id, user["discord_id"])
     return JSONResponse({"ok": True})
-
-
-# ----------------------------------------------------------- SNCF Connect
-@app.post("/api/sncf/login")
-async def sncf_login(request: Request):
-    user = await _current_user(request)
-    if not user:
-        raise HTTPException(401, "Non connecté")
-    data = await request.json()
-    access_token = data.get("access_token", "").strip()
-    id_token = data.get("id_token", "").strip()
-    if not access_token:
-        raise HTTPException(400, "Access token requis")
-    try:
-        result = await login_with_tokens(access_token, id_token)
-    except Exception as e:
-        raise HTTPException(503, f"Erreur lors de la récupération du profil SNCF : {e}")
-    await db.upsert_sncf_account(
-        discord_id=user["discord_id"],
-        access_token=result["access_token"],
-        id_token=result.get("id_token", ""),
-        refresh_token=result.get("refresh_token"),
-        token_expires_at=result["token_expires_at"],
-        refresh_expires_at=result["refresh_expires_at"],
-        customer_id=result.get("customer_id"),
-        card_number=result.get("card_number"),
-        card_label=result.get("card_label"),
-        date_of_birth=result.get("date_of_birth"),
-        first_name=result.get("first_name"),
-        last_name=result.get("last_name"),
-        initials=result.get("initials"),
-    )
-    return JSONResponse({
-        "ok": True,
-        "first_name": result.get("first_name"),
-        "card_label": result.get("card_label"),
-        "card_number": result.get("card_number"),
-    })
-
-
-SNCF_OWNER_ID = os.environ.get("SNCF_OWNER_DISCORD_ID", "")
-
-@app.get("/api/sncf/status")
-async def sncf_status(request: Request):
-    user = await _current_user(request)
-    if not user:
-        raise HTTPException(401, "Non connecté")
-    is_owner = bool(SNCF_OWNER_ID and user["discord_id"] == SNCF_OWNER_ID)
-    if not is_owner:
-        return JSONResponse({"connected": False, "is_owner": False})
-    account = await db.get_sncf_account(user["discord_id"])
-    if not account:
-        return JSONResponse({"connected": False, "is_owner": True})
-    return JSONResponse({
-        "connected": True,
-        "is_owner": True,
-        "first_name": account.get("first_name"),
-        "card_label": account.get("card_label"),
-        "card_number": account.get("card_number"),
-        "refresh_expires_at": account.get("refresh_expires_at"),
-    })
-
-
-@app.delete("/api/sncf/logout")
-async def sncf_logout(request: Request):
-    user = await _current_user(request)
-    if not user:
-        raise HTTPException(401, "Non connecté")
-    await db.delete_sncf_account(user["discord_id"])
-    return JSONResponse({"ok": True})
-
-
-@app.get("/api/sncf/debug")
-async def sncf_debug(request: Request, origin: str = "PARIS (INTRAMUROS)", destination: str = "BORDEAUX ST JEAN", date: str = ""):
-    """Appel live brut vers le BFF SNCF pour déboguer la structure de réponse."""
-    user = await _current_user(request)
-    if not user:
-        raise HTTPException(401, "Non connecté")
-
-    from datetime import date as _date
-    travel_date = date or (_date.today().isoformat())
-
-    account = await db.get_sncf_account(SNCF_OWNER_ID or user["discord_id"])
-    if not account:
-        raise HTTPException(404, "Pas de compte SNCF configuré")
-
-    import uuid as _uuid
-    from sncf_auth import BFF_HEADERS
-    from sncf_live import _get_station_id_cached
-
-    access_token = account.get("access_token", "")
-    id_token = account.get("id_token", "")
-
-    origin_id = await _get_station_id_cached(origin, access_token)
-    dest_id = await _get_station_id_cached(destination, access_token)
-
-    dob = account.get("date_of_birth", "")
-    try:
-        birth_year = int(dob[:4]) if dob else 2000
-        from datetime import datetime as _dt, timezone as _tz
-        age = _dt.now(_tz.utc).year - birth_year
-    except Exception:
-        age = 21
-
-    payload = {
-        "schedule": {"outward": {"date": f"{travel_date}T04:00:00.000Z", "arrivalAt": False}},
-        "mainJourney": {
-            "origin": {"id": origin_id, "label": origin, "geolocation": False, "isEditable": True, "codes": []},
-            "destination": {"id": dest_id, "label": destination, "geolocation": False, "isEditable": True, "codes": []},
-        },
-        "passengers": [{
-            "id": str(_uuid.uuid4()),
-            "customerId": account.get("customer_id"),
-            "age": age,
-            "dateOfBirth": dob,
-            "discountCards": [{
-                "code": "TGV_MAX",
-                "number": account.get("card_number"),
-                "label": account.get("card_label", "MAX JEUNE"),
-                "selected": True,
-                "storedInAccount": True,
-            }],
-            "typology": "YOUNG" if age <= 27 else "SENIOR",
-            "displayName": f"{account.get('first_name','')} {account.get('last_name','')}".strip(),
-            "firstName": account.get("first_name", ""),
-            "lastName": account.get("last_name", ""),
-            "initials": account.get("initials", ""),
-            "withoutSeatAssignment": False,
-            "hasDisability": False,
-            "hasWheelchair": False,
-        }],
-        "pets": [],
-        "itineraryId": str(_uuid.uuid4()),
-        "branch": "SHOP",
-        "forceDisplayResults": True,
-        "trainExpected": True,
-        "wishBike": False,
-        "strictMode": False,
-        "directJourney": False,
-        "transporterLabels": [],
-        "userNavigation": ["IS_NOT_BUSINESS"],
-    }
-
-    cookies = {"__Host-access-account-token": access_token}
-    if id_token:
-        cookies["__Host-id-account-token"] = id_token
-
-    async with httpx.AsyncClient(timeout=30) as c:
-        r = await c.post(
-            "https://www.sncf-connect.com/bff/api/v1/itineraries",
-            headers=BFF_HEADERS,
-            cookies=cookies,
-            json=payload,
-        )
-
-    return JSONResponse({
-        "status": r.status_code,
-        "account_info": {
-            "card_number": account.get("card_number"),
-            "customer_id": account.get("customer_id"),
-            "first_name": account.get("first_name"),
-            "token_expires_at": account.get("token_expires_at"),
-        },
-        "station_ids": {"origin": origin_id, "destination": dest_id},
-        "bff_response": r.json() if r.headers.get("content-type", "").startswith("application/json") else r.text[:2000],
-    })

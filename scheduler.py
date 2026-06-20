@@ -2,19 +2,16 @@
 Scheduler APScheduler (AsyncIOScheduler) intégré au même event loop qu'uvicorn.
 """
 import os
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 
 from db import db
 from discord_notif import send_dm
-from sncf_auth import refresh_access_token
-from sncf_live import fetch_live
 from sncf_opendata import check_trains_opendata, refresh_gares_cache
 
 INTERVAL = int(os.environ.get("CHECK_INTERVAL_MINUTES", "30"))
-SNCF_OWNER_ID = os.environ.get("SNCF_OWNER_DISCORD_ID", "")
 _scheduler = AsyncIOScheduler()
 _last_check: str | None = None
 
@@ -38,33 +35,6 @@ async def check_all_watches() -> None:
             print(f"[Scheduler] Erreur surveillance {watch['id']} : {exc}")
 
 
-async def _get_fresh_sncf_account(discord_id: str) -> dict | None:
-    """Retourne le compte SNCF avec token valide, refresh si nécessaire."""
-    account = await db.get_sncf_account(discord_id)
-    if not account:
-        return None
-
-    expires_at = datetime.fromisoformat(account["token_expires_at"].replace("Z", "+00:00"))
-    now = datetime.now(timezone.utc)
-
-    if expires_at - now < timedelta(minutes=5):
-        try:
-            new_tokens = await refresh_access_token(account["refresh_token"])
-            await db.update_sncf_tokens(
-                discord_id,
-                new_tokens["access_token"],
-                new_tokens["refresh_token"],
-                new_tokens["token_expires_at"],
-            )
-            account.update(new_tokens)
-            print(f"[Scheduler] Token SNCF rafraîchi pour {discord_id}")
-        except Exception as e:
-            print(f"[Scheduler] Refresh token SNCF échoué pour {discord_id}: {e}")
-            return None
-
-    return account
-
-
 async def _check_one(watch: dict) -> None:
     wid = watch["id"]
     origin = watch["origin"]
@@ -76,18 +46,8 @@ async def _check_one(watch: dict) -> None:
 
     print(f"[Scheduler] Check: {origin}→{dest} le {travel_date} {time_from}-{time_to}")
 
-    # Toujours utiliser le compte SNCF du propriétaire de l'app
-    sncf_owner = SNCF_OWNER_ID or discord_id
-    sncf_account = await _get_fresh_sncf_account(sncf_owner)
-    trains = []
-
-    if sncf_account:
-        trains = await fetch_live(origin, dest, travel_date, time_from, time_to, sncf_account, discord_id=sncf_owner)
-        print(f"[Scheduler] Live: {len(trains)} train(s)")
-
-    if not trains:
-        trains = await check_trains_opendata(origin, dest, travel_date, time_from, time_to)
-        print(f"[Scheduler] OpenData: {len(trains)} train(s)")
+    trains = await check_trains_opendata(origin, dest, travel_date, time_from, time_to)
+    print(f"[Scheduler] OpenData: {len(trains)} train(s)")
 
     await db.update_watch_trains(wid, trains)
 
@@ -110,22 +70,6 @@ async def _check_one(watch: dict) -> None:
             print(f"[Scheduler] ✅ Notifié {discord_id} : train {train_no} {origin}→{dest} le {travel_date}")
 
 
-async def check_expiring_sncf_tokens() -> None:
-    """Notifie les utilisateurs dont le refresh token expire dans moins de 5 jours."""
-    expiring = await db.get_sncf_accounts_expiring_soon()
-    for account in expiring:
-        discord_id = account["discord_id"]
-        msg = (
-            "⚠️ **Reconnexion SNCF requise**\n\n"
-            "Votre connexion SNCF Connect va expirer dans moins de 5 jours.\n"
-            "Rendez-vous sur l'application pour vous reconnecter et continuer à "
-            "recevoir les alertes TGV Max en temps réel.\n\n"
-            "👉 https://tgvmax-monitor.onrender.com"
-        )
-        await send_dm(discord_id, msg)
-        print(f"[Scheduler] Notif expiration SNCF envoyée à {discord_id}")
-
-
 def start_scheduler() -> None:
     _scheduler.add_job(
         check_all_watches,
@@ -138,12 +82,6 @@ def start_scheduler() -> None:
         refresh_gares_cache,
         trigger=IntervalTrigger(hours=24),
         id="refresh_gares",
-        replace_existing=True,
-    )
-    _scheduler.add_job(
-        check_expiring_sncf_tokens,
-        trigger=IntervalTrigger(hours=24),
-        id="check_sncf_expiry",
         replace_existing=True,
     )
     _scheduler.start()

@@ -5,7 +5,6 @@ SUPABASE_URL et SUPABASE_KEY (clé service_role pour bypasser le RLS).
 """
 import os
 from datetime import date, datetime, timedelta
-from typing import Optional
 
 import httpx
 
@@ -193,66 +192,6 @@ class Database:
             r.raise_for_status()
 
 
-    # --------------------------------------------------------- sncf_accounts
-    async def get_sncf_account(self, discord_id: str) -> Optional[dict]:
-        async with httpx.AsyncClient(timeout=15) as c:
-            r = await c.get(
-                f"{self.base}/sncf_accounts",
-                headers=self._h,
-                params={"discord_id": f"eq.{discord_id}"},
-            )
-            r.raise_for_status()
-            data = r.json()
-        return data[0] if data else None
-
-    async def upsert_sncf_account(self, discord_id: str, id_token: str = "", **fields) -> None:
-        fields["id_token"] = id_token
-        headers = {**self._h, "Prefer": "resolution=merge-duplicates"}
-        async with httpx.AsyncClient(timeout=15) as c:
-            r = await c.post(
-                f"{self.base}/sncf_accounts",
-                headers=headers,
-                json={"discord_id": discord_id, **fields},
-            )
-            r.raise_for_status()
-
-    async def update_sncf_tokens(
-        self,
-        discord_id: str,
-        access_token: str,
-        refresh_token: Optional[str],
-        token_expires_at: str,
-    ) -> None:
-        payload: dict = {"access_token": access_token, "token_expires_at": token_expires_at}
-        if refresh_token is not None:
-            payload["refresh_token"] = refresh_token
-        async with httpx.AsyncClient(timeout=15) as c:
-            await c.patch(
-                f"{self.base}/sncf_accounts",
-                headers=self._h,
-                params={"discord_id": f"eq.{discord_id}"},
-                json=payload,
-            )
-
-    async def delete_sncf_account(self, discord_id: str) -> None:
-        async with httpx.AsyncClient(timeout=15) as c:
-            await c.delete(
-                f"{self.base}/sncf_accounts",
-                headers=self._h,
-                params={"discord_id": f"eq.{discord_id}"},
-            )
-
-    async def get_sncf_accounts_expiring_soon(self) -> list:
-        """Retourne les comptes dont le refresh token expire dans moins de 5 jours."""
-        in_5_days = (datetime.utcnow() + timedelta(days=5)).isoformat() + "Z"
-        async with httpx.AsyncClient(timeout=15) as c:
-            r = await c.get(
-                f"{self.base}/sncf_accounts",
-                headers=self._h,
-                params={"refresh_expires_at": f"lt.{in_5_days}"},
-            )
-            r.raise_for_status()
-            return r.json() or []
 
 
 db = Database()
