@@ -222,3 +222,13 @@ async def delete_watch(watch_id: str, request: Request):
         raise HTTPException(401, "Non connecté")
     await db.delete_watch(watch_id, user["discord_id"])
     return JSONResponse({"ok": True})
+
+
+@app.get("/api/test-dm")
+async def test_dm(request: Request):
+    from discord_notif import send_dm
+    user = await _current_user(request)
+    if not user:
+        raise HTTPException(401, "Non connecté")
+    ok = await send_dm(user["discord_id"], "✅ Test DM depuis TGV Max Monitor — les notifications fonctionnent !")
+    return JSONResponse({"ok": ok, "discord_id": user["discord_id"]})
