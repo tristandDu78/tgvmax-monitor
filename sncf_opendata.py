@@ -62,7 +62,7 @@ async def check_trains_opendata(
     correspondant aux critères (date + créneau horaire).
     """
     where = (
-        f'origine="{origin}" AND destination="{destination}" '
+        f'lower(origine)="{origin.lower()}" AND lower(destination)="{destination.lower()}" '
         f'AND date=date\'{travel_date}\' AND od_happy_card="OUI"'
     )
     print(f"[OpenData] Requête : {where}")
